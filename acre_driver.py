@@ -22,12 +22,21 @@
 #     - h1,h2,h3 files
 #     - add more checks
 #     - optimize math and averaging
+#
+#
+#  FYI: REALLY HELPFULL DEBUG TOOL
+#  UNcomment the imported "code" library and add the following call
+#  in the code where you want to add a debug stop:
+#        code.interact(local=locals())
+#
+#
+#
 # =======================================================================================
 
 import matplotlib.pyplot as plt
 import sys
 import getopt
-import code  # For development: code.interact(local=locals())
+#import code  # For development: code.interact(local=locals())
 import time
 import acre_history_utils as hutils
 import acre_restart_utils as rutils
@@ -490,6 +499,7 @@ def main(argv):
         test_restart_list = getnclist(test_r_prefix,'restart')
         ## number of test-case restart files
         n_r_files = test_restart_list.__len__()
+        n_rtypes  = 1
         if(n_r_files <= 0):
             print('acre could not find any restart files, and you optioned for restart analysis')
             sys.exit(2)
@@ -604,7 +614,6 @@ def main(argv):
         # found in the acre_history_utils module (hutils)
 
         if(restartmode):
-        
             # Initialize (or re-initialize) the rvars class
             rvar = rutils.rvars(n_rtypes,n_r_files,test_name,base_name)
     
@@ -626,7 +635,12 @@ def main(argv):
 
             putils.multipanel_histplot(site,hvarlist,"MMV",n_htypes)
             putils.multipanel_histplot(site,hvarlist,"DMV",n_htypes)
-            putils.multipanel_histplot(site,hvarlist,"AMV",n_htypes)
+
+            if(hdims.nyears>1):
+                putils.multipanel_histplot(site,hvarlist,"AMV",n_htypes)
+            else:
+                print('Omitting plots of annual trends')
+                print('Less than two years of data provided')
 
             if(restartmode):
                 ## Make some restart analysis plots
