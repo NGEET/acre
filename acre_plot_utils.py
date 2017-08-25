@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import code  # For development: code.interact(local=locals())
+#import code  # For development: code.interact(local=locals())
 import sys
 import matplotlib.dates as mdates
 
@@ -286,7 +286,6 @@ def multipanel_histplot(site,hvarlist,atype,n_htypes):
         if(acheck):
             
             count += 1
-#            code.interact(local=locals())
             if(count>4):
 
                 figh = plt.figure(figsize=[9,8])

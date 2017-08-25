@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from os import listdir
 from os.path import isfile, join 
 import sys
-import code  # For development: code.interact(local=locals())
+#import code  # For development: code.interact(local=locals())
 import datetime
 
 ## Define the restart variables (rvars) class type
@@ -145,89 +145,6 @@ class rvars:
 
                 self.npa_gc[rtype,fid] += 1
 
-
-        else:
-
-            # Array of gridcell indices for each column
-            col2gr = fp.variables['cols1d_gridcell_index'].data
-
-            # Array of number of patches in those grid-cells
-            patchpcol = fp.variables['fates_PatchesPerSite'].data
-
-            # Column weight on that grid-cell
-            cols1d_wtxy = fp.variables['cols1d_wtxy'].data
-
-            # cols1d_active
-            cols1d_active = fp.variables['cols1d_active'].data
-
-
-            # We want to filter columns that both have patches
-            # and also match the grid-cell of interest
-            
-            icrs = np.where( (patchpcol>nodataflag) & (col2gr==(igr+1)) & (cols1d_wtxy>0.0 ) & (cols1d_active==1))
-
-            sumwt = sum(cols1d_wtxy[icrs])
-
-            for idx, icr in enumerate(icrs):
-
-                colwt = cols1d_wtxy[icr]/sumwt
-                gid_b = icr*co_ar_size
-                gid_e = gid_b + co_ar_size
-
-                # In this call, we identify the vector of cohort and patch data
-                # (which currrently use the same space) associated with a grid cell
-                patchmap  = fp.variables['fates_CohortsPerPatch'].data[gid_b:gid_e]
-
-                # array indices
-                pa_ids = np.where(np.greater(patchmap,nodataflag))  
-
-                max_area = sum(fp.variables['fates_area'].data[gid_b + pa_ids[0][:]])
-                
-                # Patch loop
-                for pid in gid_b + pa_ids[0][:]:     # This is a tuple I think
-
-                    # Retrieve patch level variables
-                    p_area  = fp.variables['fates_area'].data[pid]
-                    p_age   = fp.variables['fates_age'].data[pid]
-        
-                    # Retrieve cohort level variables
-                    n_cohorts = patchmap[pid]
-                    cid_b = pid
-                    cid_e = pid+n_cohorts  # python uses the last index as a greater than type
-
-                    c_bleaf  = fp.variables['fates_bl'].data[cid_b:cid_e]
-                    c_bdead  = fp.variables['fates_bdead'].data[cid_b:cid_e] # [kgC/plant]
-                    c_dbh    = fp.variables['fates_dbh'].data[cid_b:cid_e]
-                    c_heigt  = fp.variables['fates_height'].data[cid_b:cid_e]
-                    c_nplant = fp.variables['fates_nplant'].data[cid_b:cid_e]    # [plant/patch]
-                    c_pft    = fp.variables['fates_pft'].data[cid_b:cid_e]
-
-                    # If any of the cohorts are zero, then something is wrong
-                    if (any(np.less_equal(c_nplant,0.0))):
-                        print('cohort map believes a zero density cohort is valid, exiting');
-                        sys.exit()
-    
-                    # Since N is plants per patch, we don't even need to do area weighting
-                    # we just simply add the stuff up
-
-                    self.bdead_gc[rtype,fid] += kg_to_Mg * sum(c_bdead*c_nplant) * colwt
-                    self.bleaf_gc[rtype,fid] += sum(c_bdead*c_nplant) * colwt
-                    self.ba_gc[rtype,fid]    += sum(0.25*np.pi*cm2_to_m2*c_dbh*c_dbh*c_nplant) * colwt
-
-                    # Filter those cohorts smaller than 5cm dbh
-                    idrecr5 = np.less_equal(c_dbh,5.0)
-                    self.bdead_dbh5_gc[rtype,fid] += kg_to_Mg * sum(c_bdead[idrecr5]*c_nplant[idrecr5]) * colwt
-
-                    idrecr2 = np.less_equal(c_dbh,2.0)
-                    self.bdead_dbh2_gc[rtype,fid] += kg_to_Mg * sum(c_bdead[idrecr2]*c_nplant[idrecr2]) * colwt
-
-                    self.nc_per_pa_gc[rtype,fid] += n_cohorts*(p_area/max_area)
-                    
-                    self.npa_gc[rtype,fid] += 1
-
-
-
-        
 
         fp.close()   # Close the netcdf file
         

@@ -2,7 +2,7 @@
 ## @package acre_history_utils a bunch of scripts that help interperate
 
 
-import code
+#import code   # For development: code.interact(local=locals())
 import numpy as np
 import xml.etree.ElementTree as et
 from scipy.io import netcdf
@@ -181,7 +181,6 @@ class hist_vars:
         if(self.dimclass is None):
             print('History Variable: '+name+' does not have a registered dimensionality')
             print('in this toolset.  ')
-            code.interact(local=locals())
             exit(0)
 
         # Determine what types of output formats are requested
@@ -365,7 +364,7 @@ def load_history(file,igh,hvarlist,htype,scr,hdims):
         if(hvar.dimclass=='3dlndscpf'):
             rawshape = fp.variables[hvar.name].shape
             scpf_dim = 1   # 0 is time, and 2 is space
-#            code.interact(local=locals())
+
             # ----------------------------------------------------------------
             # In some cases we want to just condense the second dimension
             # the "scpf" dimension into a single value.
