@@ -1,0 +1,644 @@
+# =======================================================================================
+## @package acre_driver a driver for the Answer Changing Regression Evaluator
+#
+# For usage: $python acre_driver.py -h
+#
+#
+#
+# This script is intended to diagnose the output of several single site runs, as a 
+# rapid visual and textual analysis on ecosystem response over a period of 5 - 50 years.  
+#
+# As a default, the user must provide the file-path to restart files. As a default,
+# plotting is turned off.
+#
+# Options include 1) the ability to do a regression against another set of files (base).
+#                 2) analysis of history files (which have a 1-hour suggested output)
+#                 3) plotting (most of the analysis right now is visual, not much
+#                              really happens right now without plotting)
+#
+# Next capabilities that are in queue:
+#     - add more restart output diagnostics
+#     - come up with a list of PASS/FAIL diagnostics
+#     - h1,h2,h3 files
+#     - add more checks
+#     - optimize math and averaging
+# =======================================================================================
+
+import matplotlib.pyplot as plt
+import sys
+import getopt
+import code  # For development: code.interact(local=locals())
+import time
+import acre_history_utils as hutils
+import acre_restart_utils as rutils
+import acre_plot_utils as putils
+
+# =======================================================================================
+# Some Global Parmaeters
+
+## The name of the xml file containing site data (should not change)
+xmlfile = 'acre_controls.xml'
+
+## A proximity threshold for matching the locations of Sites Of Interest (SOIs)
+# with locations with the model output grids, units: [degrees] 
+geo_thresh = 0.1
+        
+
+
+# =======================================================================================
+
+## Define the sitetype class structure
+#  Sitetype is a class used to describe Sites Of Interest (SOIs).
+#  SOIs are associated with geographic locations on the globe
+#  where we want to closely evaluate model output.  These sites may
+#  be chosen because they present unusual ecology, or because these
+#  location contains instrumentation or a monitoring network.
+# \callgraph
+class sitetype:
+    
+    ## The constructor only initializes name and location.
+    # @param self The object
+    # @param name The name (text string) of the SOI
+    # @param lat  The latitude of the SOI in decimal degrees
+    # @param lon  The longitude of the SOI in decimal degrees
+    def __init__(self,name,lat,lon):
+        
+        ## The name (text string) of the SOI
+        self.name = name  
+        ## The latitude of the SOI in decimal degrees
+        self.lat  = lat
+        ## The longitude of the SOI in decimal degrees
+        self.lon  = lon    
+        ## The associated grid-index of the restart file (index grid restart = igr)
+        self.igr  = -9     
+        ## The associated grid-index of the history file (index grid history = igh)
+        self.igh  = -9
+
+        
+    ## This function only sets the grid index of the restart file it has aleady been
+    # determined that the site is indeed encapulated by the model grid.
+    # Therefore this value gets set later.
+    def set_igr(self,igr):
+        ## The associated grid-index of the restart file
+        self.igr  = igr
+
+    def set_igh(self,igh):
+        ## The associated grid index of the history file
+        self.igh  = igh
+
+# =======================================================================================
+
+
+## get a list of files given a directory prefix and specification on the type
+# @param file_prefix a string with the full or relative path to the data
+# @return filelist a list of strings, each of which a file
+def getnclist(file_prefix,filetype):
+
+    from os.path import isfile, join 
+    from os import listdir
+
+    file_prefix = file_prefix+'/'
+
+    if(filetype == 'restart'):
+        filelist = sorted([file_prefix+f for f in listdir(file_prefix) \
+                               if ( isfile(join(file_prefix, f)) & \
+                                        ('clm2.r.' in f) & ('.nc' in f ))  ])
+
+    elif(filetype == 'h0'):
+        filelist = sorted([file_prefix+f for f in listdir(file_prefix) \
+                               if ( isfile(join(file_prefix, f)) & \
+                                        ('clm2.h0.' in f) & ('.nc' in f ))  ])
+
+    elif(filetype == 'h1'):
+        filelist = sorted([file_prefix+f for f in listdir(file_prefix) \
+                               if ( isfile(join(file_prefix, f)) & \
+                                        ('clm2.h1.' in f) & ('.nc' in f ))  ])        
+
+    elif(filetype == 'h2'):
+        filelist = sorted([file_prefix+f for f in listdir(file_prefix) \
+                               if ( isfile(join(file_prefix, f)) & \
+                                        ('clm2.h2.' in f) & ('.nc' in f ))  ])
+
+    else:
+
+        print("filetype: {}, is not supported".format(filetype))
+        sys.exit(2)
+
+    return(filelist)
+
+
+# ========================================================================================
+
+## load_sites interprets the Site of Interest (SOI) XML file.
+# It does this by loading the XML entries automatically into an element tree.
+# The generated tree is fairly simple, and the important tags are stored.  
+# There is only one parent entry class "site". Within which is the name 
+# (its tag), and the lat/lon coordinates.
+# @param xmlfile the xml filename including path
+# @param sitetype the class type
+# @return sites a list of class sitetype
+
+def load_sites(xmlfile,sitetype):
+    
+    import xml.etree.ElementTree as et
+    sites = []
+
+    siteroot = et.parse(xmlfile).getroot()
+    for elem in siteroot.iter('site'):
+        
+        name = elem.attrib['tag']
+        lat  = float(elem.find('lat').text)
+        lon  = float(elem.find('lon').text)
+        sites.append(sitetype(name,lat,lon))
+
+    return(sites)
+
+# ========================================================================================
+
+## print the help message for argument passing
+
+def usage():
+     print('')
+     print('=======================================================================')
+     print('')
+     print(' python acre_driver.py -h --plotmode --regressmode ')
+     print('                         --test-rest-pref=<path> --base-rest-pref=<path>')
+     print('                         --test-hist-pref=<path> --base-hist-pref=<path>')
+     print('                         --test-name=<test> --base-name=<text>')
+     print('')
+     print('  This script is intended to diagnose the output of several single site')
+     print('  runs, as a rapid pass/fail visual analysis on ecosystem response over')
+     print('  a period of 25 - 50 years.  Simulations are expected to be from a ')
+     print('  single site run (in the current version).')
+     print('')
+     print('')
+     print(' -h --help ')
+     print('     print this help message')
+     print('')
+     print(' --plotmode')
+     print('     [Optional] logical switch, turns on plotting')
+     print('     default is False')
+     print('')
+     print(' --regressmode')
+     print('     [Optional] logical switch, turns on regression tests')
+     print('     against a baseline. Requires user to also set --base-rest-pref')
+     print('     default is False')
+     print('')
+     print(' --historymode')
+     print('     [Optional] logical switch, turns on evaluations of history type output')
+     print('     in this mode, the code will search for h0 and up to h2')
+     print('     it will check all available file types for each variable of interest')
+     print('')
+     print(' --test-rest-pref=<path>')
+     print('     the full path to restart files of the test release version to test')
+     print('')
+     print(' --base-rest-pref=<path>')
+     print('     [Optional]  the full path to restart files of a baseline release')
+     print('')
+     print(' --test-hist-pref=<path>')
+     print('     [Optional] the full path to history files of ')
+     print('     the test release version to test')
+     print('')
+     print(' --base-hist-pref=<path>')
+     print('     [Optional]  the full path to history files of a baseline release')
+     print('')
+     print('')
+     print(' --test-name=<text>')
+     print('     [Optional] a short descriptor for the test case that will be used')
+     print('     for labeling plots. The default for the test case is "test".')
+     print('')
+     print(' --base-name=<text>')
+     print('     [Optional] a short descriptor for the base case that will be used')
+     print('     for labeling plots. The default for the base case is "base".')
+     print('')
+     print('')
+     print('=======================================================================')
+
+# =======================================================================================
+
+## interpret timing information from restart files.
+# This information is appended to a list of "datelist" objects that are defined in the 
+# datetime library.
+# @param file The filename of the current restart file, without path
+# @param file_prefix The path to the filename
+# @param datelist A special date class defined by the datetime library.
+# @return datelist 
+
+def load_restart_dates(file,datelist):
+    from scipy.io import netcdf
+    import math
+    import datetime
+
+    fp = netcdf.netcdf_file(file, 'r')
+ 
+    # Retrieve the timing information from the file
+    # ymd should be an integer
+    ymd   = fp.variables['timemgr_rst_curr_ymd'].data
+    dom   = int(ymd - 100*math.floor(ymd/100.0))
+    moy   = int(math.floor(ymd/100) - 100*math.floor(ymd/10000))
+    yr    = int(math.floor(ymd/10000))
+    sod   = int(fp.variables['timemgr_rst_curr_tod'].data)
+    datelist.append(datetime.datetime(yr,moy,dom,sod))
+    fp.close()   # Close the netcdf file
+    return(datelist)
+
+
+# =======================================================================================
+
+## compare the list of all known SOIs against the first restart file (which should have 
+# the same grid structure as all restarts). If a grid-cell exists that is within a 
+# distance tolerance, then the site is categorized as available, and the index of 
+# the grid-cell is saved.
+# @param restart_file  the name of the first test restart file
+# @param sites_known   a list of class sitetype 
+# @param geo_thresh    the maximum acceptable distance 
+# between the SOI and gridcell (degrees)
+#
+def filter_rest_hist_sites(file,filetype,sites_known,geo_thresh):
+
+    from scipy.io import netcdf
+    import numpy as np
+
+    ## netcdf object, think this is some type of pointer map to the file contents
+    fp = netcdf.netcdf_file(file, 'r')
+
+    if(filetype=='restart'):
+    ## longitude data from the 1st restart file
+        lons = fp.variables['grid1d_lon'].data
+    ## latitude data from the 1st restart file
+        lats = fp.variables['grid1d_lat'].data
+
+    elif(filetype=='history'):
+    ## longitude data from the 1st restart file
+        lons = fp.variables['lon'].data
+    ## latitude data from the 1st restart file
+        lats = fp.variables['lat'].data
+
+    else:
+        print('Bad file type passed to the site filter')
+        sys.exit(2)
+
+
+    ## list of sites that have confirmed coverage within the restart file
+    #  this is a list of class sitetype
+    sites_avail = []
+    
+    for site in sites_known:
+
+        ## the gridcell index with the smallest squared difference
+        # in geoposition with the current SOI
+        igr = np.argmin( (lons-site.lon)**2.0 + (lats-site.lat)**2.0 )
+
+        if ( (((lons[igr]-site.lon)**2.0 + (lats[igr]-site.lat)**2.0)**0.5) < geo_thresh):
+            print('Site: '+site.name+' was located in the restart grid')
+            sites_avail.append( sitetype(site.name,site.lat,site.lon)   )
+            if(filetype=='restart'):
+                sites_avail[-1].set_igr(igr)
+            else:
+                sites_avail[-1].set_igh(igr)
+        else:
+            print('Site: '+site.name+' was NOT located in the restart grid')
+        
+    fp.close()
+    return sites_avail
+
+
+
+
+# ========================================================================================
+
+## interp_args processes the arguments passed to the python script at executions.
+#  The options are parsed and logical checks and comparisons are made.
+# @param argv
+# @return plotmode
+# @return regressionmode
+# @return historymode
+# @return test_r_prefix
+# @return base_r_prefix
+# @return test_h_prefix
+# @return base_h_prefix
+# @return test_name
+# @return base_name
+
+def interp_args(argv):
+
+    argv.pop(0)  # The script itself is the first argument, forget it
+
+    ## Binary flag that turns on and off plotting
+    plotmode = False
+    ## Binary flag that turns on and off regression tests against a baseline run
+    regressionmode = False
+    ## Binary flag that turns on and off the use of history files for evaluation and comparison
+    historymode = False
+    ## File path to the directory containing restart files from that baseline simulation
+    base_r_prefix  = ''
+    ## File path to the directory containing restart files from the test simulation
+    test_r_prefix  = ''
+    ## File path to the directory containin the history files from the test simulation
+    test_h_prefix = ''
+    ## File path to the directory containin the history files from the base simulation
+    base_h_prefix = ''
+    ## Name for plot labeling of the test case
+    test_name = 'test'
+    ## Name for plot labeling of the base case
+    base_name = 'base'
+
+    try:
+        opts, args = getopt.getopt(argv, 'h',["help","plotmode","regressmode", \
+                              "historymode","test-rest-pref=","base-rest-pref=", \
+                                              "test-hist-pref=","base-hist-pref=", \
+                                              "test-name=","base-name="])
+
+    except getopt.GetoptError as err:
+        print('Argument error, see usage')
+        usage()
+        sys.exit(2)
+    for o, a in opts:
+        if o in ("-h", "--help"):
+            usage()
+            sys.exit(0)
+        elif o in ("--plotmode"):
+            plotmode = True
+        elif o in ("--regressmode"):
+            regressionmode = True
+        elif o in ("--historymode"):
+            historymode = True
+        elif o in ("--test-rest-pref"):
+            test_r_prefix = a
+        elif o in ("--base-rest-pref"):
+            base_r_prefix = a
+        elif o in ("--test-hist-pref"):
+            test_h_prefix = a
+        elif o in ("--base-hist-pref"):
+            base_h_prefix = a
+        elif o in ("--test-name"):
+            test_name = a
+        elif o in ("--base-name"):
+            base_name = a
+        else:
+            assert False, "unhandled option"
+
+    if(plotmode):
+        print('Plotting is ON')
+    else:
+        print('Plotting is OFF')
+
+    if(historymode):
+        if(test_h_prefix==''):
+            print('You specified history mode, you must also specify')
+            print('the directory prefix to those files')
+            usage()
+            sys.exit(2)
+        
+    if(regressionmode):
+        print('Regression Testing is ON')
+        if(base_r_prefix==''):
+            print('In a regression style comparison, you must specify a')
+            print('path to baseline restarts. See usage:')
+            usage()
+            sys.exit(2)
+        if(historymode):
+            if(base_h_prefix==''):
+                print('When regression and history modes are active,')
+                print('you must provide a path to baseline history files')
+                usage()
+                sys.exit(2)
+    else:
+        print('Regression Testing is OFF')
+
+    if(test_r_prefix==''):
+        print('A path to restarts is a required input, see usage:')
+        usage()
+        sys.exit(2)
+
+    return (plotmode, regressionmode, historymode, test_r_prefix, \
+                base_r_prefix, test_h_prefix, base_h_prefix, test_name, base_name)
+
+
+
+
+# ========================================================================================
+# ========================================================================================
+#                                        Main
+# ========================================================================================
+# ========================================================================================
+
+def main(argv):
+
+    # Interpret the arguments to the script
+    plotmode, regressionmode, historymode, test_r_prefix, \
+        base_r_prefix, test_h_prefix, base_h_prefix, \
+        test_name, base_name = interp_args(argv)
+    
+    
+    ## list of restart file names for the test-case 
+    test_restart_list = getnclist(test_r_prefix,'restart')
+    
+    ## list of restart file names of the base-case
+    base_restart_list = []
+    
+    ## list of history file names for the test-case 
+    test_h0_list = [] 
+    
+    ## list of history file names for the base-case
+    base_h0_list = []
+    
+    ## number of test-case restart files
+    n_r_files = test_restart_list.__len__()
+    
+    ## number of base-case restart files
+    n_rb_files = int(-9)
+    
+    ## number simulation types being used for restart analysis
+    # (1 includes only a test, 2 also includes base simulations)
+    n_rtypes = 1
+    
+    ## number of simulation types being used for history analysis 
+    # (1 is test, 2 includes baseline)
+    n_htypes = 0
+    
+    ## list of date objects for restarts, date objects contain the file timing information
+    # note that only one list (test and base) is ultimately needed, they must be the same
+    # list or the script aborts in error
+    restart_datelist = []
+    
+    ## list of date objects in the base simulation restart files
+    restart_datelist_b = []
+    
+    
+    
+    if(regressionmode):
+        base_restart_list = getnclist(base_r_prefix,'restart')
+        n_rb_files = base_restart_list.__len__()
+        n_rtypes = 2
+
+        if(n_r_files != n_rb_files):
+            print('Your test and base have different numbers of restart files')
+            sys.exit(2)
+
+    if(historymode):
+        test_h0_list = getnclist(test_h_prefix,'h0')
+        n_h_files = test_h0_list.__len__()
+        n_htypes  = 1
+        if(regressionmode):
+            base_h0_list = getnclist(base_h_prefix,'h0')
+            n_hb_files = base_h0_list.__len__()
+            n_htypes = 2
+            if(n_h_files != n_hb_files):
+                print('Your test and base have different numbers of h0 files')
+                sys.exit(2)
+
+
+    # ========================================================================================
+    # Load up the sites of interest
+    # ========================================================================================
+
+    ## a list of all known sites that should be compared to model output grids
+    #  this is a list of class sitetype
+
+    sites_known = load_sites(xmlfile,sitetype)
+    sites_avail = filter_rest_hist_sites(test_restart_list[0],'restart', \
+                                         sites_known,geo_thresh)
+
+    # Check to see if the same sites that are available in the restart
+    # are also available in the history, if not, abort because that is weird
+
+    if(historymode):
+        hsites_avail = filter_rest_hist_sites(test_h0_list[0],'history', \
+                                              sites_known,geo_thresh)
+
+        # Check to see if the valid sites in the history match that of the restart
+        # If it passes this step, only one site list is necessary
+        if(hsites_avail.__len__() != sites_avail.__len__()):
+            print('It seems odd that the hsitory and restart files do not contain')
+            print('the same number of sites')
+            sys.exit(2)
+        else:
+            for i in range(hsites_avail.__len__()):
+                if(sites_avail[i].name != hsites_avail[i].name):
+                    print('site incompatibility in history and restart files')
+                    sys.exit(2)       
+                else:
+                    # Copy over the history grid index
+                    sites_avail[i].igh = hsites_avail[i].igh
+            hsites_avail = None
+
+    # ========================================================================================
+    # Load up the output-file time-stamping
+    # this is done before the processing of diagnostic variables because it
+    # is necessary for array initialization and evaluating what types of output
+    # diagnostics can be processed
+    # ========================================================================================
+
+    print('Processing File Timing information\n')
+
+    for file in test_restart_list:
+        # Append the datelist
+        restart_datelist = load_restart_dates(file,restart_datelist)
+
+    if(regressionmode):
+        for file in base_restart_list:
+            restart_datelist_b = load_restart_dates(file,restart_datelist_b)
+        if(restart_datelist != restart_datelist_b):
+            print('Baseline restart file-times inconsistent with test')
+            sys.exit(2)
+        else:
+            restart_datelist_b = None
+ 
+
+    # ========================================================================================
+    # Evaluate the first history file for dimension information and save it as the hist_dims 
+    # class.  Restart analysis is more straightforward, this step is not needed.
+    # Openning all 
+    # ========================================================================================
+
+    if(historymode):
+        hdims = hutils.hist_dims(test_h0_list[0])
+        hdims.timing([test_h0_list[0],test_h0_list[1],test_h0_list[-1]])
+
+
+    # ========================================================================================
+    # Initialize the restart and (if optioned, history) variable class, 
+    # then loop through the files and diagnose the critical variables
+    # ========================================================================================
+
+
+    for site in sites_avail:
+
+        start_time = time.time()
+        print('Processing Diagnostics for: '+site.name)
+
+
+        # Initialize (or re-initialize) the rvars class
+        rvar = rutils.rvars(n_rtypes,n_r_files,test_name,base_name)
+    
+        # Loop through the restart files and populate time-series diagnostics
+        print('')
+        print('Loading test case restart files at site: '+site.name)
+        for file in test_restart_list:
+            rvar.load_restart(file,site.igr,0)
+
+        if(regressionmode):
+            print('')
+            print('Loading base case restart files at site: '+site.name)
+            for file in base_restart_list:
+                rvar.load_restart(file,site.igr,1)
+
+
+        # Initialize the history variables.  This is a list of class hist_vars
+        # found in the acre_history_utils module (hutils)
+
+        if(historymode):
+        
+            print('')
+            print('Loading test case h0 files at site: '+site.name)
+            hvarlist = hutils.define_histvars(xmlfile,hdims,test_h0_list[0],n_htypes,test_name,base_name)
+        
+            scr = hutils.scratch_space(test_h0_list[0])
+        
+            for file in test_h0_list:
+                hutils.load_history(file,site.igh,hvarlist,0,scr,hdims)
+
+            
+            if(regressionmode):
+                for file in base_h0_list:
+                    hutils.load_history(file,site.igh,hvarlist,1,scr,hdims)
+
+            for hvar in hvarlist:
+                hvar.normalize_diagnostics()
+
+
+        print('Site {} Diagnosed in {} seconds'.format(site.name,(time.time()-start_time)))
+        if(plotmode):
+
+
+            if(historymode):
+                putils.multipanel_histplot(site,hvarlist,"MMV",n_htypes)
+                putils.multipanel_histplot(site,hvarlist,"DMV",n_htypes)
+                putils.multipanel_histplot(site,hvarlist,"AMV",n_htypes)
+
+            ## Make some restart analysis plots
+            putils.quadpanel_restplots(site,rvar,restart_datelist,n_rtypes)
+        
+            print('Close the current figures to advance')
+            plt.show()
+
+        else:
+            print('Plotting was turned off, no plots to show')
+   
+    print('rapid science tests complete!') 
+    exit(0)
+
+# =======================================================================================
+# This is the actual call to main
+   
+if __name__ == "__main__":
+    main(sys.argv)
+
+
+
+
+
+
+
+
