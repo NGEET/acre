@@ -170,7 +170,7 @@ def usage():
      print('')
      print('=======================================================================')
      print('')
-     print(' python acre_driver.py -h --plotmode --regressmode ')
+     print(' python acre_driver.py -h --plotmode --regressmode --restartmode')
      print('                         --test-hist-pref=<path> --base-hist-pref=<path>')
      print('                         --test-rest-pref=<path> --base-rest-pref=<path>')
      print('                         --test-name=<test> --base-name=<text>')
