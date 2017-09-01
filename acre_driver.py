@@ -609,6 +609,7 @@ def main(argv):
 
         for hvar in hvarlist:
             hvar.normalize_diagnostics()
+            
 
         # Initialize the restart variables.  This is a list of class hist_vars
         # found in the acre_history_utils module (hutils)
@@ -633,14 +634,21 @@ def main(argv):
         print('Site {} Diagnosed in {} seconds'.format(site.name,(time.time()-start_time)))
         if(plotmode):
 
-            putils.multipanel_histplot(site,hvarlist,"MMV",n_htypes)
-            putils.multipanel_histplot(site,hvarlist,"DMV",n_htypes)
+            if(hdims.hperiod<=(24*32)):
+                putils.multipanel_histplot(site,hvarlist,"MMV",n_htypes)
+            else:
+                print('Omitting plots of monthly means, history frequency is too coarse')
+
+            if(hdims.hperiod<12):
+                putils.multipanel_histplot(site,hvarlist,"DMV",n_htypes)
+            else:
+                print('Omitting plots of diurnal means, history frequency is too coarse')
 
             if(hdims.nyears>1):
+                
                 putils.multipanel_histplot(site,hvarlist,"AMV",n_htypes)
             else:
-                print('Omitting plots of annual trends')
-                print('Less than two years of data provided')
+                print('Omitting plots of annual trends, Less than two years of data provided')
 
             if(restartmode):
                 ## Make some restart analysis plots
