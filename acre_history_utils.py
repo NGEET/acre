@@ -6,7 +6,8 @@
 import numpy as np
 import xml.etree.ElementTree as et
 from scipy.io import netcdf
-
+import matplotlib.dates as mdates
+from datetime import datetime, timedelta
 
 # =======================================================================================
 ## simple function that converts clm history file timing stamps, integer YYYYMMDD and 
@@ -15,16 +16,28 @@ from scipy.io import netcdf
 # backwards.  ***NOT SURE WHAT THE STAMPING CONVENTION FOR HIST FILES ARE
 # @param yyyymmdd (integer) code where June 27, 1979 would be 19790627
 # @param sec (float) number of seconds in the day
+# @param date_bounds (float) bounds in days since reference of beg-end of time point
 # @return year (integer) gregorian year
 # @return moy (integer) month of year
 # @return dom (integer) day of month
 # @return hod (integer) hour of day (0-23)
-def hist_dateint_to_num(yyyymmdd,sec):
+def hist_dateint_to_num(yyyymmdd,sec,date_bounds):
 
-    year = int(np.floor(yyyymmdd/10000.0))          
-    moy  = int(np.floor((yyyymmdd-year*10000)/100.0))
-    dom  = int(yyyymmdd - (year*10000 + moy*100))
-    hod  = int(np.floor(sec/3600.0))
+    # Calculate the backwards adjustment
+    adjustment = (date_bounds[0]-date_bounds[1])/2.0
+    
+    year = np.int16(np.floor(yyyymmdd/10000.0))          
+    moy  = np.int16(np.floor((yyyymmdd-year*10000)/100.0))
+    dom  = np.int16(yyyymmdd - (year*10000 + moy*100))
+    hod  = np.int16(np.floor(sec/3600.0))
+
+    adjusted = mdates.num2date(mdates.date2num(datetime(year,moy,dom,hod))+adjustment)
+
+    year = adjusted.year
+    moy  = adjusted.month
+    dom  = adjusted.day
+    hod  = adjusted.hour
+
     return(year,moy,dom,hod)
 
 
@@ -190,30 +203,28 @@ class hist_vars:
 
         for atype,unit,mult,offset in zip(atypes,units,mults,offs):
             if(atype=="MMV"):
-                if(hdims.hperiod<=24*31):
-                    self.mmv = True
-                    self.mmv_ar = np.zeros((12,n_htypes))
-                    self.mmv_n  = np.zeros((12,n_htypes))
-                    if(n_htypes==1):
-                        self.mmv_x  = np.array([range(1,13)]).transpose()
-                    else:
-                        self.mmv_x  = np.array([range(1,13),range(1,13)]).transpose()
-                    self.mmv_unit = unit
-                    self.mmv_mult = float(mult)
-                    self.mmv_off  = float(offset)
+                self.mmv = True
+                self.mmv_ar = np.zeros((12,n_htypes))
+                self.mmv_n  = np.zeros((12,n_htypes))
+                if(n_htypes==1):
+                    self.mmv_x  = np.array([range(1,13)]).transpose()
+                else:
+                    self.mmv_x  = np.array([range(1,13),range(1,13)]).transpose()
+                self.mmv_unit = unit
+                self.mmv_mult = float(mult)
+                self.mmv_off  = float(offset)
 
             if(atype=="DMV"):
-                if(hdims.hperiod<=6):
-                    self.dmv = True
-                    self.dmv_ar = np.zeros((24,n_htypes))
-                    self.dmv_n  = np.zeros((24,n_htypes))
-                    if(n_htypes==1):
-                        self.dmv_x  = np.array([range(24)]).transpose()
-                    else:
-                        self.dmv_x  = np.array([range(24),range(24)]).transpose()
-                    self.dmv_unit = unit
-                    self.dmv_mult = float(mult)
-                    self.dmv_off  = float(offset)
+                self.dmv = True
+                self.dmv_ar = np.zeros((24,n_htypes))
+                self.dmv_n  = np.zeros((24,n_htypes))
+                if(n_htypes==1):
+                    self.dmv_x  = np.array([range(24)]).transpose()
+                else:
+                    self.dmv_x  = np.array([range(24),range(24)]).transpose()
+                self.dmv_unit = unit
+                self.dmv_mult = float(mult)
+                self.dmv_off  = float(offset)
             if(atype=="AMV"):
                 self.amv = True
                 self.amv_ar   = np.zeros((hdims.nyears,n_htypes))
@@ -234,9 +245,9 @@ class hist_vars:
     # @param htype (integer) specifies if this is test or baseline data
     def push_mmv(self,rawdata,movec,htype):
         for idx, val in enumerate(movec):
-            self.mmv_ar[int(val)-1,htype] = self.mmv_ar[int(val)-1,htype] + \
+            self.mmv_ar[int(val),htype] = self.mmv_ar[int(val),htype] + \
                                             rawdata[idx]*self.mmv_mult + self.mmv_off
-            self.mmv_n[int(val)-1,htype]  = self.mmv_n[int(val)-1,htype]  + 1.0
+            self.mmv_n[int(val),htype]  = self.mmv_n[int(val),htype]  + 1.0
 
     ## push the values of a given time-stamp (rawdata) into the DIURNAL average
     # @param rawdata (float 1D-vector) the raw data in the file
@@ -263,27 +274,27 @@ class hist_vars:
         uns = np.unique(movec)
         for idx,val in enumerate(uns):
             mask = movec == val
-            self.mmv_ar[int(val)-1,htype] = self.mmv_ar[int(val)-1,htype] + \
+            self.mmv_ar[int(val),htype] = self.mmv_ar[int(val),htype] + \
                 np.sum(rawdata[mask])*self.mmv_mult + self.mmv_off
-            self.mmv_n[int(val)-1,htype]  = self.mmv_n[int(val)-1,htype]  + np.sum(mask)
+            self.mmv_n[int(val),htype]  = self.mmv_n[int(val),htype]  + np.sum(mask)
 
     ## like push_dmv but does vectorized processes across unique day entries
     def push_dmvvec(self,rawdata,hrvec,htype):
         uns = np.unique(hrvec)
         for idx,val in enumerate(uns):
             mask = hrvec == val
-            self.dmv_ar[int(val)-1,htype] = self.dmv_ar[int(val)-1,htype] + \
+            self.dmv_ar[int(val),htype] = self.dmv_ar[int(val),htype] + \
                 np.sum(rawdata[mask])*self.dmv_mult + self.dmv_off
-            self.dmv_n[int(val)-1,htype]  = self.dmv_n[int(val)-1,htype]  + np.sum(mask)
+            self.dmv_n[int(val),htype]  = self.dmv_n[int(val),htype]  + np.sum(mask)
 
     ## like push_amv but does vectorized processes across unique month year entries
     def push_amvvec(self,rawdata,yrvec,htype):
         uns = np.unique(yrvec)
         for idx,val in enumerate(uns):
             mask = yrvec == val
-            self.amv_ar[int(val)-1,htype] = self.amv_ar[int(val)-1,htype] + \
+            self.amv_ar[int(val),htype] = self.amv_ar[int(val),htype] + \
                 np.sum(rawdata[mask])*self.amv_mult + self.amv_off
-            self.amv_n[int(val)-1,htype]  = self.amv_n[int(val)-1,htype]  + np.sum(mask)
+            self.amv_n[int(val),htype]  = self.amv_n[int(val),htype]  + np.sum(mask)
 
     ## after all of the raw data has been pushed into their respective averaging arrays,
     #  the sums need to be converted into averages by simple normalization.
@@ -301,7 +312,12 @@ class hist_vars:
             
         if(self.amv):
             self.amv_ar = np.divide(self.amv_ar,self.amv_n)
-            mask = self.amv_n < 100 
+            mask = self.amv_n < 2 
+            self.amv_ar[mask] = np.nan
+            
+            # Mask out values that are incomplete
+            maxmask = max(self.amv_n[:,0])
+            mask = self.amv_n < np.floor(0.75*maxmask)
             self.amv_ar[mask] = np.nan
 
         np.seterr(**old_div0)
@@ -323,21 +339,27 @@ def load_history(file,igh,hvarlist,htype,scr,hdims):
 
     # Load up a file to retrieve dimension info
     fp = netcdf.netcdf_file(file, 'r')
-    print('Loading: '+file)
+    
+    yyyymmdd    = fp.variables['mcdate'].data
+    sec         = fp.variables['mcsec'].data
+    date_bounds = fp.variables['time_bounds'].data    #[time,bounds_interval]
+    ntimes      = int(yyyymmdd.__len__())
 
-    yyyymmdd = fp.variables['mcdate'].data
-    sec      = fp.variables['mcsec'].data
-    ntimes   = int(yyyymmdd.__len__())
+    print('Loading: '+file)
 
     if(~vectorizedates):
         # Strangely, when the time operations were vectorized, the code
         # took longer to complete.  I will leave the vectorized calls
         # in place and perhaps I will figure out why some day
         for it in range(ntimes):
-            year,moy,dom,hod = hist_dateint_to_num(yyyymmdd[it],sec[it])
+            year,moy,dom,hod = hist_dateint_to_num(yyyymmdd[it],sec[it],date_bounds[it,:])
             scr.yrvec[it] = np.int16(year)-hdims.yeara
-            scr.movec[it] = np.int16(moy)
-            scr.hrvec[it] = np.int16(hod)
+            scr.movec[it] = np.int16(moy)-1
+            scr.hrvec[it] = np.int16(hod)-1
+#            print('yyyymd[it]:',yyyymmdd[it],'sec[it]',sec[it],'dbs',date_bounds[it,:]) 
+#            print(year,moy,dom,hod)
+#            print('id: ',it,'year: ',scr.yrvec[it],' month: ',scr.movec[it],' hour: ',scr.hrvec[it])
+
     else:
         scr.hist_dateints_to_nums(yyyymmdd,sec,hdims.yeara)
 
@@ -464,26 +486,30 @@ class hist_dims:
         fpa = netcdf.netcdf_file(filea, 'r')
         yyyymmdd_a = fpa.variables['mcdate'].data
         sec_a      = fpa.variables['mcsec'].data
+        db_a       = fpa.variables['time_bounds'].data
         ntimes_a   = (yyyymmdd_a.__len__());
         
         # Open the timing info on the second file
         fpb = netcdf.netcdf_file(fileb, 'r')
         yyyymmdd_b = fpb.variables['mcdate'].data
         sec_b      = fpb.variables['mcsec'].data
+        db_b       = fpb.variables['time_bounds'].data
         
         # Open the year info for just the last file
         fpz        = netcdf.netcdf_file(filez, 'r')
         yyyymmdd_z = fpz.variables['mcdate'].data
+        sec_z      = fpz.variables['mcsec'].data
+        db_z       = fpz.variables['time_bounds'].data
         
         if(ntimes_a>1):  # Multiple time-stamps per file
             
-            yr1,moy1,dom1,hod1 = hist_dateint_to_num(yyyymmdd_a[0],sec_a[0])
-            yr2,moy2,dom2,hod2 = hist_dateint_to_num(yyyymmdd_a[1],sec_a[1])
+            yr1,moy1,dom1,hod1 = hist_dateint_to_num(yyyymmdd_a[0],sec_a[0],db_a[0,:])
+            yr2,moy2,dom2,hod2 = hist_dateint_to_num(yyyymmdd_a[1],sec_a[1],db_a[1,:])
 
         else:
             
-            yr1,moy1,dom1,hod1 = hist_dateint_to_num(yyyymmdd_a[0],sec_a[0])
-            yr2,moy2,dom2,hod2 = hist_dateint_to_num(yyyymmdd_b[0],sec_b[0])
+            yr1,moy1,dom1,hod1 = hist_dateint_to_num(yyyymmdd_a[0],sec_a[0],db_a[0,:])
+            yr2,moy2,dom2,hod2 = hist_dateint_to_num(yyyymmdd_b[0],sec_b[0],db_b[0,:])
 
         # This does not need to be perfect at large numbers
         # hourly period between history time-stamps
@@ -493,13 +519,13 @@ class hist_dims:
                                       (hod2-hod1) ))
 
                                     
+        yrz,moyz,domz,hodz = hist_dateint_to_num(yyyymmdd_z[-1],sec_z[-1],db_z[-1,:])
 
-        yrz  = int(np.floor(yyyymmdd_z[-1]/10000.0))  
+#        yrz  = int(np.floor(yyyymmdd_z[-1]/10000.0))  
 
         self.nyears = yrz-yr1+1
         self.yeara = yr1
         self.yearz = yrz
-
 
         fpa.close()   # Close the netcdf file
         fpb.close()   # Close the netcdf file
