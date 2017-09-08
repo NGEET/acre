@@ -608,6 +608,21 @@ def main(argv):
     hdims = hutils.hist_dims(test_h0_list[0])
     hdims.timing([test_h0_list[0],test_h0_list[1],test_h0_list[-1]])
 
+    hvarlist = hutils.define_histvars(xmlfile,hdims,test_h0_list[0],n_htypes,test_name,base_name)
+
+
+#    max_site_name_len = 32
+#    max_var_name_len  = 112
+#    max_var_comp_name_len = 16
+
+    max_var_name_len = 24
+    max_site_name_len = 112
+    max_var_comp_name_len = 16
+
+
+    # Initialize the summary output table
+    summary_table = open(r"Output.txt","w")
+   
 
     # ========================================================================================
     # Initialize the history (and if optioned, history) variable class, 
@@ -622,7 +637,7 @@ def main(argv):
 
         print('')
         print('Loading test case h0 files at site: '+site.name)
-        hvarlist = hutils.define_histvars(xmlfile,hdims,test_h0_list[0],n_htypes,test_name,base_name)
+        
         
         scr = hutils.scratch_space(test_h0_list[0])
         
@@ -687,12 +702,48 @@ def main(argv):
         else:
             print('Plotting was turned off, no plots to show')
    
-        # PLACEHOLDER - THIS IS A GOOD LOCATION TO PUT THE REPORTING OF 
-        # NON PLOT DIAGNOSTICS
 
+        # Generate tabular output for this site
+        # =============================================================
+        summary_table.write(str_pad(site.name,max_site_name_len))
+        summary_table.write(str_pad("MEAN",max_var_comp_name_len))
+        summary_table.write(str_pad("DMIN+V",max_var_comp_name_len))
+        summary_table.write(str_pad("DMAX+V",max_var_comp_name_len))
+        summary_table.write(str_pad("MMIN+V",max_var_comp_name_len))
+        summary_table.write(str_pad("MMAX+V",max_var_comp_name_len))
+        summary_table.write(str_pad("AMIN+V",max_var_comp_name_len))
+        summary_table.write(str_pad("AMAX+V",max_var_comp_name_len))
+        summary_table.write("\n")
+
+        for hvar in hvarlist:
+            summary_table.write(str_pad(hvar.name,max_var_name_len))
+            summary_table.write(str_pad(np.mean(hvar.mmv_ar)))
+            
+
+#        for rvar in rvarlist:
+#            rvar.report_summary_stats()
+            
+
+
+
+    summary_table.close()
 
     print('rapid science tests complete!') 
     exit(0)
+
+def str_pad(raw_str,str_len):
+
+    npads = str_len - len(raw_str)
+    if(npads>0):
+        for i in range(0,npads):
+            raw_str += ' '
+    else:
+        print('A site or variable has a name that is too long:')
+        print('String Name:',+raw_str)
+        print('Max Lenght:',+(str_len-1))
+
+    return(raw_str)
+
 
 # =======================================================================================
 # This is the actual call to main
