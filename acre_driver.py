@@ -34,6 +34,7 @@
 # =======================================================================================
 
 import matplotlib.pyplot as plt
+import numpy as np
 import sys
 import getopt
 import code  # For development: code.interact(local=locals())
@@ -41,6 +42,7 @@ import time
 import acre_history_utils as hutils
 import acre_restart_utils as rutils
 import acre_plot_utils as putils
+import acre_table_utils as tutils
 
 # =======================================================================================
 # Some Global Parmaeters
@@ -575,6 +577,13 @@ def main(argv):
                     sites_avail[i].igr = rsites_avail[i].igr
         rsites_avail = None
 
+    if(len(sites_avail) == 0):
+        print('')
+        print('No sites of interest were located in your output files.')
+        print('Exiting.')
+        sys.exit(2)
+
+
     # ========================================================================================
     # Load up the output-file time-stamping
     # this is done before the processing of diagnostic variables because it
@@ -611,17 +620,12 @@ def main(argv):
     hvarlist = hutils.define_histvars(xmlfile,hdims,test_h0_list[0],n_htypes,test_name,base_name)
 
 
-#    max_site_name_len = 32
-#    max_var_name_len  = 112
-#    max_var_comp_name_len = 16
 
-    max_var_name_len = 24
-    max_site_name_len = 112
-    max_var_comp_name_len = 16
 
 
     # Initialize the summary output table
     summary_table = open(r"Output.txt","w")
+    tutils.table_header(summary_table)
    
 
     # ========================================================================================
@@ -703,27 +707,13 @@ def main(argv):
             print('Plotting was turned off, no plots to show')
    
 
-        # Generate tabular output for this site
-        # =============================================================
-        summary_table.write(str_pad(site.name,max_site_name_len))
-        summary_table.write(str_pad("MEAN",max_var_comp_name_len))
-        summary_table.write(str_pad("DMIN+V",max_var_comp_name_len))
-        summary_table.write(str_pad("DMAX+V",max_var_comp_name_len))
-        summary_table.write(str_pad("MMIN+V",max_var_comp_name_len))
-        summary_table.write(str_pad("MMAX+V",max_var_comp_name_len))
-        summary_table.write(str_pad("AMIN+V",max_var_comp_name_len))
-        summary_table.write(str_pad("AMAX+V",max_var_comp_name_len))
-        summary_table.write("\n")
+
+        tutils.site_header(summary_table,site)
 
         for hvar in hvarlist:
-            summary_table.write(str_pad(hvar.name,max_var_name_len))
-            summary_table.write(str_pad(np.mean(hvar.mmv_ar)))
-            
-
-#        for rvar in rvarlist:
-#            rvar.report_summary_stats()
-            
-
+            tutils.site_var_write_line(summary_table,hvar,0)
+            if(regressionmode):
+                tutils.site_var_write_line(summary_table,hvar,1)
 
 
     summary_table.close()
@@ -731,18 +721,7 @@ def main(argv):
     print('rapid science tests complete!') 
     exit(0)
 
-def str_pad(raw_str,str_len):
 
-    npads = str_len - len(raw_str)
-    if(npads>0):
-        for i in range(0,npads):
-            raw_str += ' '
-    else:
-        print('A site or variable has a name that is too long:')
-        print('String Name:',+raw_str)
-        print('Max Lenght:',+(str_len-1))
-
-    return(raw_str)
 
 
 # =======================================================================================
