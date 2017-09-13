@@ -86,7 +86,7 @@ def define_histvars(xmlfile,hdims,file0,n_htypes,test_name,base_name):
                 offs.append(atype.find('offset').text)
 
 
-        fp = netcdf.netcdf_file(file0, 'r')
+        fp = netcdf.netcdf_file(file0, 'r', mmap=False)
 
         if (fp.variables.has_key(name)):
 
@@ -113,13 +113,14 @@ class scratch_space:
     # @param file0 (string) a netcdf file from which time information can be diagnosed
     def __init__(self,file0):
         
-        fp = netcdf.netcdf_file(file0, 'r')
+        fp = netcdf.netcdf_file(file0, 'r',mmap=False)
         ntimemax = int(1.25*fp.variables['mcdate'].data.__len__())
         self.rawdata = np.zeros((ntimemax))
         self.movec   = np.zeros((ntimemax),dtype=np.int16)
         self.hrvec   = np.zeros((ntimemax),dtype=np.int16)
         self.yrvec   = np.zeros((ntimemax),dtype=np.int16)
-        
+        fp.close()
+
     ## the timing information in history files may be vectors, an alternative
     # formulation to read them in uses the scratch class to avoid memory allocation
     # this was supposed to be fast, but for some reason it deosn't save time
@@ -180,12 +181,17 @@ class hist_vars:
 
         # 2D Classes:
         # Current allowable classes:  2DLND  ('time','lndgrd')
+        #                             3DLND  ('time','lat','lon')
 
         self.dimclass = None
-
+        
         if(dimnames.__len__() == 2):
-            if(dimnames[1] == 'lndgrid'):
+            if(dimnames[0] == 'time' and dimnames[1] == 'lndgrid'):
                 self.dimclass = '2dlnd'
+
+        if(dimnames.__len__() == 3):
+            if(dimnames[0] == 'time' and dimnames[1] == 'lat' and dimnames[2] == 'lon'):
+                self.dimclass = '3dlnd'
 
         if(dimnames.__len__() == 3):
             if(dimnames[2] == 'lndgrid' and dimnames[1] == 'fates_levscpf'):
@@ -194,7 +200,10 @@ class hist_vars:
         if(self.dimclass is None):
             print('History Variable: '+name+' does not have a registered dimensionality')
             print('in this toolset.  ')
-            exit(0)
+            if(dimnames.__len__()>0):
+                for dimname in dimnames:
+                    print(dimname)
+            exit()
 
         # Determine what types of output formats are requested
         # for this variable.  
@@ -328,17 +337,17 @@ class hist_vars:
 #  in its database, and based on their definitions, will process data for each of them
 #  accordingly.  
 # @param file (string) the netcdf file name currently being opened
-# @param igh (integer) the spatial index of this variable (index history grid)
+# @param site (class) the site class object (for spatial indexing)
 # @param hvarlist (list) the list of history variables of class (hvar)
 # @param htype (integer) 0 for test version, 1 for baseline version
 # @param scr (class) the scratch space for mathing things hard
 # @param hdims (class) information about the file dimensions
-def load_history(file,igh,hvarlist,htype,scr,hdims):
+def load_history(file,site,hvarlist,htype,scr,hdims):
 
     vectorizedates = False
 
     # Load up a file to retrieve dimension info
-    fp = netcdf.netcdf_file(file, 'r')
+    fp = netcdf.netcdf_file(file, 'r', mmap=False)
     
     yyyymmdd    = fp.variables['mcdate'].data
     sec         = fp.variables['mcsec'].data
@@ -372,11 +381,29 @@ def load_history(file,igh,hvarlist,htype,scr,hdims):
                     fp.variables[hvar.name].data[:ntimes].reshape(-1)
             else:
                 scr.rawdata[:ntimes] = \
-                    fp.variables[hvar.name].data[:ntimes,igh].rehape(-1)
+                    fp.variables[hvar.name].data[:ntimes,site.igh].rehape(-1)
 
             if(hvar.mmv):
                 hvar.push_mmvvec(scr.rawdata[:ntimes],scr.movec[:ntimes],htype)
                 
+            if(hvar.dmv):
+                hvar.push_dmv(scr.rawdata[:ntimes],scr.hrvec[:ntimes],htype)
+
+            if(hvar.amv):
+                hvar.push_amvvec(scr.rawdata[:ntimes],scr.yrvec[:ntimes],htype)
+
+        if(hvar.dimclass=='3dlnd'):
+            rawshape = fp.variables[hvar.name].shape
+            if(rawshape[1] == 1):
+                scr.rawdata[:ntimes] = \
+                    fp.variables[hvar.name].data[:ntimes].reshape(-1)
+            else:
+                scr.rawdata[:ntimes] = \
+                    fp.variables[hvar.name].data[:ntimes,site.ilath,site.ilonh].reshape(-1)
+
+            if(hvar.mmv):
+                hvar.push_mmvvec(scr.rawdata[:ntimes],scr.movec[:ntimes],htype)
+
             if(hvar.dmv):
                 hvar.push_dmv(scr.rawdata[:ntimes],scr.hrvec[:ntimes],htype)
 
@@ -405,17 +432,17 @@ def load_history(file,igh,hvarlist,htype,scr,hdims):
 
             if(hvar.mmv ):
                 if(scale_type==1):
-                    scr.rawdata[:ntimes] = np.sum(fp.variables[hvar.name].data[:ntimes,:,igh],axis=scpf_dim).reshape(-1)
+                    scr.rawdata[:ntimes] = np.sum(fp.variables[hvar.name].data[:ntimes,:,site.igh],axis=scpf_dim).reshape(-1)
                     hvar.push_mmvvec(scr.rawdata[:ntimes],scr.movec[:ntimes],htype)
 
             if(hvar.dmv):
                 if(scale_type==1):
-                    scr.rawdata[:ntimes] = np.sum(fp.variables[hvar.name].data[:ntimes,:,igh],axis=scpf_dim).reshape(-1)
+                    scr.rawdata[:ntimes] = np.sum(fp.variables[hvar.name].data[:ntimes,:,site.igh],axis=scpf_dim).reshape(-1)
                     hvar.push_dmv(scr.rawdata[:ntimes],scr.hrvec[:ntimes],htype)
 
             if(hvar.amv):
                 if(scale_type==1):
-                    scr.rawdata[:ntimes] = np.sum(fp.variables[hvar.name].data[:ntimes,:,igh],axis=scpf_dim).reshape(-1)
+                    scr.rawdata[:ntimes] = np.sum(fp.variables[hvar.name].data[:ntimes,:,site.igh],axis=scpf_dim).reshape(-1)
                     hvar.push_amvvec(scr.rawdata[:ntimes],scr.yrvec[:ntimes],htype)
 
     fp.close()
@@ -431,7 +458,7 @@ class hist_dims:
     ## @param file0 (string) an arbitrary file name used to extract dimension data
     def __init__(self,file0):
 
-        fp = netcdf.netcdf_file(file0, 'r')
+        fp = netcdf.netcdf_file(file0, 'r', mmap=False)
         
         print('Dimension information for history files\n')
  
@@ -483,20 +510,20 @@ class hist_dims:
             sys.exit(2)
 
         # Open the timing info on the first file
-        fpa = netcdf.netcdf_file(filea, 'r')
+        fpa = netcdf.netcdf_file(filea, 'r', mmap=False)
         yyyymmdd_a = fpa.variables['mcdate'].data
         sec_a      = fpa.variables['mcsec'].data
         db_a       = fpa.variables['time_bounds'].data
         ntimes_a   = (yyyymmdd_a.__len__());
         
         # Open the timing info on the second file
-        fpb = netcdf.netcdf_file(fileb, 'r')
+        fpb = netcdf.netcdf_file(fileb, 'r', mmap=False)
         yyyymmdd_b = fpb.variables['mcdate'].data
         sec_b      = fpb.variables['mcsec'].data
         db_b       = fpb.variables['time_bounds'].data
         
         # Open the year info for just the last file
-        fpz        = netcdf.netcdf_file(filez, 'r')
+        fpz        = netcdf.netcdf_file(filez, 'r', mmap=False)
         yyyymmdd_z = fpz.variables['mcdate'].data
         sec_z      = fpz.variables['mcsec'].data
         db_z       = fpz.variables['time_bounds'].data
