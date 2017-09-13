@@ -36,7 +36,7 @@
 import matplotlib.pyplot as plt
 import sys
 import getopt
-#import code  # For development: code.interact(local=locals())
+import code  # For development: code.interact(local=locals())
 import time
 import acre_history_utils as hutils
 import acre_restart_utils as rutils
@@ -50,7 +50,7 @@ xmlfile = 'acre_controls.xml'
 
 ## A proximity threshold for matching the locations of Sites Of Interest (SOIs)
 # with locations with the model output grids, units: [degrees] 
-geo_thresh = 0.1
+geo_thresh = 2.0
         
 
 
@@ -82,19 +82,14 @@ class sitetype:
         self.igr  = -9     
         ## The associated grid-index of the history file (index grid history = igh)
         self.igh  = -9
+        ## If a gridded simulation, instead of lndgrid we have 2d geographic coordinates
+        self.ilath = -9
+        self.ilonh = -9
+
+        ## This index specifies what type of history grid we have
+        self.hgrid = -9
 
         
-    ## This function only sets the grid index of the restart file it has aleady been
-    # determined that the site is indeed encapulated by the model grid.
-    # Therefore this value gets set later.
-    def set_igr(self,igr):
-        ## The associated grid-index of the restart file
-        self.igr  = igr
-
-    def set_igh(self,igh):
-        ## The associated grid index of the history file
-        self.igh  = igh
-
 # =======================================================================================
 
 
@@ -158,6 +153,8 @@ def load_sites(xmlfile,sitetype):
         name = elem.attrib['tag']
         lat  = float(elem.find('lat').text)
         lon  = float(elem.find('lon').text)
+        if(lon<0):
+            lon = 360.0+lon
         sites.append(sitetype(name,lat,lon))
 
     return(sites)
@@ -243,7 +240,7 @@ def load_restart_dates(file,datelist):
     import math
     import datetime
 
-    fp = netcdf.netcdf_file(file, 'r')
+    fp = netcdf.netcdf_file(file, 'r', mmap=False)
  
     # Retrieve the timing information from the file
     # ymd should be an integer
@@ -274,7 +271,7 @@ def filter_rest_hist_sites(file,filetype,sites_known,geo_thresh):
     import numpy as np
 
     ## netcdf object, think this is some type of pointer map to the file contents
-    fp = netcdf.netcdf_file(file, 'r')
+    fp = netcdf.netcdf_file(file, 'r', mmap=False)
 
     if(filetype=='restart'):
     ## longitude data from the 1st restart file
@@ -283,9 +280,17 @@ def filter_rest_hist_sites(file,filetype,sites_known,geo_thresh):
         lats = fp.variables['grid1d_lat'].data
 
     elif(filetype=='history'):
-    ## longitude data from the 1st restart file
+
+        ## Test if this is a 2d or irregular
+        if ('lat' in fp.dimensions):
+            hgrid = 2
+        else:
+            hgrid = 1
+
+        ## longitude data from the 1st history file
         lons = fp.variables['lon'].data
-    ## latitude data from the 1st restart file
+        
+        ## latitude data from the 1st history file
         lats = fp.variables['lat'].data
 
     else:
@@ -301,17 +306,39 @@ def filter_rest_hist_sites(file,filetype,sites_known,geo_thresh):
 
         ## the gridcell index with the smallest squared difference
         # in geoposition with the current SOI
-        igr = np.argmin( (lons-site.lon)**2.0 + (lats-site.lat)**2.0 )
+        
+        if(filetype=='restart' or (hgrid==1) ):
+            igr = np.argmin( (lons-site.lon)**2.0 + (lats-site.lat)**2.0 )
 
-        if ( (((lons[igr]-site.lon)**2.0 + (lats[igr]-site.lat)**2.0)**0.5) < geo_thresh):
-            print('Site: '+site.name+' was located in the restart grid')
-            sites_avail.append( sitetype(site.name,site.lat,site.lon)   )
-            if(filetype=='restart'):
-                sites_avail[-1].set_igr(igr)
+            if ( (((lons[igr]-site.lon)**2.0 + (lats[igr]-site.lat)**2.0)**0.5) < geo_thresh):
+                print('Site: '+site.name+' was located in the restart grid')
+                sites_avail.append( sitetype(site.name,site.lat,site.lon)   )
+                if(filetype=='restart'):
+                    sites_avail[-1].igr = igr
+                else:
+                    sites_avail[-1].igh = igr
+                    sites_avail[-1].hgrid = hgrid
             else:
-                sites_avail[-1].set_igh(igr)
+                print('Site: '+site.name+' was NOT located in the restart grid')
+                print('glon: '+lons[igr]+' slon: ',site.lon,' glat: ',lats[igr],' slat: ',site.lat)
+
+        elif(filetype=='history' and (hgrid==2) ):
+            ilat = np.argmin( (lats-site.lat)**2.0 )
+            ilon = np.argmin( (lons-site.lon)**2.0 )
+            if ( (((lons[ilon]-site.lon)**2.0 + (lats[ilat]-site.lat)**2.0)**0.5) < geo_thresh):
+                print('Site: '+site.name+' was located in the restart grid')
+                sites_avail.append( sitetype(site.name,site.lat,site.lon)   )
+                sites_avail[-1].ilath=ilat
+                sites_avail[-1].ilonh=ilon
+                sites_avail[-1].hgrid=hgrid
+            else:
+                print('Site: '+site.name+' was NOT located in the restart grid')
+                print('glon: '+str(lons[ilon])+' slon: '+str(site.lon)+' glat: '+str(lats[ilat])+' slat: '+str(site.lat))
         else:
-            print('Site: '+site.name+' was NOT located in the restart grid')
+            print('Uknown type (restart/history) and grid combination, exiting')
+            exit()
+            
+
         
     fp.close()
     return sites_avail
@@ -600,12 +627,12 @@ def main(argv):
         scr = hutils.scratch_space(test_h0_list[0])
         
         for file in test_h0_list:
-            hutils.load_history(file,site.igh,hvarlist,0,scr,hdims)
+            hutils.load_history(file,site,hvarlist,0,scr,hdims)
 
             
         if(regressionmode):
             for file in base_h0_list:
-                hutils.load_history(file,site.igh,hvarlist,1,scr,hdims)
+                hutils.load_history(file,site,hvarlist,1,scr,hdims)
 
         for hvar in hvarlist:
             hvar.normalize_diagnostics()

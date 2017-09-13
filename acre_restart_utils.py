@@ -77,7 +77,7 @@ class rvars:
    
         # Load the file
         print('Loading: '+file)
-        fp = netcdf.netcdf_file(file, 'r')
+        fp = netcdf.netcdf_file(file, 'r', mmap=False)
  
         co_ar_size = fp.dimensions['cohort']
 
