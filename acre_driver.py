@@ -200,6 +200,11 @@ def usage():
      print('     DO NOT USE THIS MODE ON NON-FATES OUTPUT')
      print('     --------------------------------------- ')
      print('')
+     print(' --eval-id=<id-string>')
+     print('     a string that gives a name, or some id-tag associated with the')
+     print('     evaluation being conducted. This will be used in output file naming.')
+     print('     Any spaces detected in string will be trimmed.')
+     print('')
      print(' --test-hist-pref=<path>')
      print('     the full path to the folder with history files of the test')
      print('     version of output')
@@ -381,14 +386,17 @@ def interp_args(argv):
     test_h_prefix = ''
     ## File path to the directory containin the history files from the base simulation
     base_h_prefix = ''
+    ## Name of the evaluation being performed, this is non-optional
+    eval_id = ''
     ## Name for plot labeling of the test case
     test_name = 'test'
     ## Name for plot labeling of the base case
     base_name = 'base'
 
     try:
-        opts, args = getopt.getopt(argv, 'h',["help","plotmode","regressmode", \
-                              "restartmode","test-rest-pref=","base-rest-pref=", \
+        opts, args = getopt.getopt(argv, 'h',["help","plotmode","regressmode",     \
+                                              "restartmode","eval-id=",            \
+                                              "test-rest-pref=","base-rest-pref=", \
                                               "test-hist-pref=","base-hist-pref=", \
                                               "test-name=","base-name="])
 
@@ -406,6 +414,8 @@ def interp_args(argv):
             regressionmode = True
         elif o in ("--restartmode"):
             restartmode = True
+        elif o in ("--eval-id"):
+            eval_id = a
         elif o in ("--test-rest-pref"):
             test_r_prefix = a
         elif o in ("--base-rest-pref"):
@@ -454,7 +464,16 @@ def interp_args(argv):
         usage()
         sys.exit(2)
 
-    return (plotmode, regressionmode, restartmode, test_r_prefix, \
+    if(eval_id==''):
+        print('You must provide a name/id for this evaluation, see --eval-id:')
+        usage()
+        sys.exit(2)
+
+    # Remove Whitespace in eval_id string
+    eval_id.replace(" ","")
+        
+
+    return (plotmode, regressionmode, restartmode, eval_id, test_r_prefix, \
                 base_r_prefix, test_h_prefix, base_h_prefix, test_name, base_name)
 
 
@@ -469,7 +488,7 @@ def interp_args(argv):
 def main(argv):
 
     # Interpret the arguments to the script
-    plotmode, regressionmode, restartmode, test_r_prefix, \
+    plotmode, regressionmode, restartmode, eval_id, test_r_prefix, \
         base_r_prefix, test_h_prefix, base_h_prefix, \
         test_name, base_name = interp_args(argv)
     
@@ -624,7 +643,8 @@ def main(argv):
 
 
     # Initialize the summary output table
-    summary_table = open(r"Output.txt","w")
+    summary_table_name = eval_id+"_summary_table.txt"
+    summary_table = open(summary_table_name ,"w")
     tutils.table_header(summary_table)
    
 
