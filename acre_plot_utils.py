@@ -4,6 +4,7 @@ import numpy as np
 import sys
 import matplotlib.dates as mdates
 
+
 ## Define the plotstruct class structure
 #  there are many ways to create multiplanel plots
 # multipanel plots are used a lot here because we need to minimize
@@ -91,7 +92,7 @@ class plotstruct:
 #========================================================================================
 ## plot handle for multiplanel restart comparison.  These plots are all singular 
 # time-series data.  The x-axis is always a date in years.
-def quadpanel_restplots(site,rvar,restart_datelist,n_rtypes):
+def quadpanel_restplots(site,rvar,restart_datelist,n_rtypes,pdf):
     
     fig0=plt.figure(figsize=[9,8])
     fig0.patch.set_facecolor('linen')
@@ -193,8 +194,7 @@ def quadpanel_restplots(site,rvar,restart_datelist,n_rtypes):
     plt.legend(loc='upper left')
 
     # Add a new axis for the top label
-    fig0.savefig('restart_multipanel.png',  \
-                 facecolor=fig0.get_facecolor(), edgecolor='none')
+    pdf.savefig(fig0)
 
     fig1=plt.figure(figsize=[9,8])
     fig1.patch.set_facecolor('linen')
@@ -240,10 +240,11 @@ def quadpanel_restplots(site,rvar,restart_datelist,n_rtypes):
     plt.grid(True)
     plt.gca().xaxis.set_major_locator(yearticks)
 
-
+    
 
     # Show the plot
-    return()
+    #return()
+    pdf.savefig(fig1)
 
 
 
