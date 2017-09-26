@@ -381,7 +381,7 @@ def load_history(file,site,hvarlist,htype,scr,hdims):
                     fp.variables[hvar.name].data[:ntimes].reshape(-1)
             else:
                 scr.rawdata[:ntimes] = \
-                    fp.variables[hvar.name].data[:ntimes,site.igh].rehape(-1)
+                    fp.variables[hvar.name].data[:ntimes,site.igh].reshape(-1)
 
             if(hvar.mmv):
                 hvar.push_mmvvec(scr.rawdata[:ntimes],scr.movec[:ntimes],htype)
