@@ -639,7 +639,8 @@ def main(argv):
     hvarlist = hutils.define_histvars(xmlfile,hdims,test_h0_list[0],n_htypes,test_name,base_name)
 
 
-
+    # Initialize the plot file
+    plotfile_name = ""
 
 
     # Initialize the summary output table
@@ -738,7 +739,14 @@ def main(argv):
 
     summary_table.close()
 
-    print('rapid science tests complete!') 
+    print('ACRE complete.') 
+    if(plotmode):
+        print('Two files have been generated:')
+        print(summary_table_name)
+        print(plotfile_name)
+    else:
+        print('One file has been generated:')
+        print(summary_table_name)
     exit(0)
 
 
