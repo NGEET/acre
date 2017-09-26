@@ -7,24 +7,25 @@ max_site_name_len = 112
 max_var_comp_name_len = 16
 
 def table_header(summary_table):
-    summary_table.write("Notes:")
-    summary_table.write("MEAN: Mean of yearly means (if available)")
-    summary_table.write("      Mean of monthly means (if next available)")
-    summary_table.write("      Mean of diurnal means (if next available)")
-    summary_table.write("MEAN will accept sparse data (ie ignores nans)")
-    summary_table.write("AMIN: Minimum of yearly means (ignores nans)")
-    summary_talbe.write("AMAX: Maximum of yearly means (ignores nans)")
-    summary_table.write("MMIN: Minimum of monthly means (nans disqualify)")
-    summary_talbe.write("MMAX: Maximum of monthly means (nans disqualify)")
-    summary_table.write("DMIN: Minimum of diurnal means (nans disqualify)")
-    summary_table.write("DMAX: Maximum of diurnal means (nans disqualify)")
-    summary_table.write("================================================")
+    summary_table.write("Notes:\n")
+    summary_table.write("MEAN: Mean of yearly means (if available)\n")
+    summary_table.write("      Mean of monthly means (if next available)\n")
+    summary_table.write("      Mean of diurnal means (if next available)\n")
+    summary_table.write("MEAN will accept sparse data (ie ignores nans)\n")
+    summary_table.write("AMIN: Minimum of yearly means (ignores nans)\n")
+    summary_table.write("AMAX: Maximum of yearly means (ignores nans)\n")
+    summary_table.write("MMIN: Minimum of monthly means (nans disqualify)\n")
+    summary_table.write("MMAX: Maximum of monthly means (nans disqualify)\n")
+    summary_table.write("DMIN: Minimum of diurnal means (nans disqualify)\n")
+    summary_table.write("DMAX: Maximum of diurnal means (nans disqualify)\n")
+    summary_table.write("================================================\n")
 
 
 def site_header(summary_table,site):
 
     # Generate tabular output for this site
     # =============================================================
+    summary_table.write("\n")
     summary_table.write("{:16}".format(site.name))
     summary_table.write("\n")
     summary_table.write("{:16}".format(""))
@@ -79,18 +80,6 @@ def site_var_write_line(summary_table,hvar,htype):
         summary_table.write("{:>24}".format("NA"))
         summary_table.write("{:>24}".format("NA"))
 
-    # Diurnal Max/Min
-    if(hvar.dmv):
-        num_str = "{:1.3e}".format(np.min(hvar.dmv_ar[:,htype]))
-        tab_str = "{:>24}".format(num_str+" "+hvar.dmv_unit.strip())
-        summary_table.write(tab_str)
-
-        num_str = "{:1.3e}".format(np.max(hvar.dmv_ar[:,htype]))
-        tab_str = "{:>24}".format(num_str+" "+hvar.dmv_unit.strip())
-        summary_table.write(tab_str)
-    else:
-        summary_table.write("{:>24}".format("NA"))
-        summary_table.write("{:>24}".format("NA"))
 
     # Monthly Max/Min
     if(hvar.mmv):
@@ -104,6 +93,21 @@ def site_var_write_line(summary_table,hvar,htype):
     else:
         summary_table.write("{:>24}".format("NA"))
         summary_table.write("{:>24}".format("NA"))
+
+    # Diurnal Max/Min
+    if(hvar.dmv):
+        num_str = "{:1.3e}".format(np.min(hvar.dmv_ar[:,htype]))
+        tab_str = "{:>24}".format(num_str+" "+hvar.dmv_unit.strip())
+        summary_table.write(tab_str)
+
+        num_str = "{:1.3e}".format(np.max(hvar.dmv_ar[:,htype]))
+        tab_str = "{:>24}".format(num_str+" "+hvar.dmv_unit.strip())
+        summary_table.write(tab_str)
+    else:
+        summary_table.write("{:>24}".format("NA"))
+        summary_table.write("{:>24}".format("NA"))
+
+
 
     summary_table.write("\n")
 
