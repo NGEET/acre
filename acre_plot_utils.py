@@ -1,3 +1,4 @@
+
 import matplotlib.pyplot as plt
 import numpy as np
 #import code  # For development: code.interact(local=locals())
@@ -195,6 +196,7 @@ def quadpanel_restplots(site,rvar,restart_datelist,n_rtypes,pdf):
 
     # Add a new axis for the top label
     pdf.savefig(fig0)
+    plt.close(fig0)
 
     fig1=plt.figure(figsize=[9,8])
     fig1.patch.set_facecolor('linen')
@@ -245,11 +247,12 @@ def quadpanel_restplots(site,rvar,restart_datelist,n_rtypes,pdf):
     # Show the plot
     #return()
     pdf.savefig(fig1)
+    plt.close(fig1)
 
 
 
-def multipanel_histplot(site,hvarlist,atype,n_htypes):
-    
+def multipanel_histplot(site,hvarlist,atype,n_htypes,pdf):
+
     count=50
     for hvar in hvarlist:
 
@@ -293,6 +296,11 @@ def multipanel_histplot(site,hvarlist,atype,n_htypes):
                 figh.patch.set_facecolor('linen')
                 figh.suptitle("{}".format(title_string), \
                           fontsize=14,horizontalalignment='center')
+
+                if(count!=51):
+                    pdf.savefig(figh)
+                    plt.close(figh)
+
                 # initialize panel functions for a 2x2 multipanel plot
                 pdim0 = plotstruct(2,2)
                 count = 1
@@ -317,6 +325,9 @@ def multipanel_histplot(site,hvarlist,atype,n_htypes):
             plt.title(hvar.name)
             plt.grid(True)
         
+    # Save the current figure to the PDF
+    pdf.savefig(figh)
+    plt.close(figh)
 
     # Show the plot
-    return()
+    #return()

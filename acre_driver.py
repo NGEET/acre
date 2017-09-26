@@ -34,7 +34,7 @@
 # =======================================================================================
 
 import matplotlib.pyplot as plt
-import matplotlib.backends.backend_pdf as mp_pdf
+from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
 import sys
 import getopt
@@ -328,7 +328,7 @@ def filter_rest_hist_sites(file,filetype,sites_known,geo_thresh):
                     sites_avail[-1].hgrid = hgrid
             else:
                 print('Site: '+site.name+' was NOT located in the restart grid')
-                print('glon: '+lons[igr]+' slon: ',site.lon,' glat: ',lats[igr],' slat: ',site.lat)
+                print('glon: '+str(lons[igr])+' slon: '+str(site.lon)+' glat: '+str(lats[igr])+' slat: '+str(site.lat))
 
         elif(filetype=='history' and (hgrid==2) ):
             ilat = np.argmin( (lats-site.lat)**2.0 )
@@ -641,8 +641,10 @@ def main(argv):
 
 
     # Initialize the plot file
-    plotfile_name = ""
-
+    # ========================================================================================
+    plotfile_name = eval_id+"_plots.pdf"
+    if(plotmode):
+        pdf = PdfPages(plotfile_name)
 
     # Initialize the summary output table
     summary_table_name = eval_id+"_summary_table.txt"
@@ -703,24 +705,24 @@ def main(argv):
         if(plotmode):
 
             if(hdims.hperiod<=(24*32)):
-                putils.multipanel_histplot(site,hvarlist,"MMV",n_htypes)
+                putils.multipanel_histplot(site,hvarlist,"MMV",n_htypes,pdf)
             else:
                 print('Omitting plots of monthly means, history frequency is too coarse')
 
             if(hdims.hperiod<12):
-                putils.multipanel_histplot(site,hvarlist,"DMV",n_htypes)
+                putils.multipanel_histplot(site,hvarlist,"DMV",n_htypes,pdf)
             else:
                 print('Omitting plots of diurnal means, history frequency is too coarse')
 
             if(hdims.nyears>1):
                 
-                putils.multipanel_histplot(site,hvarlist,"AMV",n_htypes)
+                putils.multipanel_histplot(site,hvarlist,"AMV",n_htypes,pdf)
             else:
                 print('Omitting plots of annual trends, Less than two years of data provided')
 
             if(restartmode):
                 ## Make some restart analysis plots
-                putils.quadpanel_restplots(site,rvar,restart_datelist,n_rtypes)
+                putils.quadpanel_restplots(site,rvar,restart_datelist,n_rtypes,pdf)
         
             print('Close the current figures to advance')
             plt.show()
@@ -742,6 +744,7 @@ def main(argv):
 
     print('ACRE complete.') 
     if(plotmode):
+        pdf.close()
         print('Two files have been generated:')
         print(summary_table_name)
         print(plotfile_name)
