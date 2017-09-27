@@ -1,4 +1,5 @@
-
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 #import code  # For development: code.interact(local=locals())
@@ -252,6 +253,8 @@ def quadpanel_restplots(site,rvar,restart_datelist,n_rtypes,pdf):
 
 
 def multipanel_histplot(site,hvarlist,atype,n_htypes,pdf):
+
+    plt.ioff()
 
     count=50
     for hvar in hvarlist:
