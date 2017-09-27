@@ -1,8 +1,11 @@
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 #import code  # For development: code.interact(local=locals())
 import sys
 import matplotlib.dates as mdates
+
 
 ## Define the plotstruct class structure
 #  there are many ways to create multiplanel plots
@@ -91,7 +94,7 @@ class plotstruct:
 #========================================================================================
 ## plot handle for multiplanel restart comparison.  These plots are all singular 
 # time-series data.  The x-axis is always a date in years.
-def quadpanel_restplots(site,rvar,restart_datelist,n_rtypes):
+def quadpanel_restplots(site,rvar,restart_datelist,n_rtypes,pdf):
     
     fig0=plt.figure(figsize=[9,8])
     fig0.patch.set_facecolor('linen')
@@ -193,8 +196,8 @@ def quadpanel_restplots(site,rvar,restart_datelist,n_rtypes):
     plt.legend(loc='upper left')
 
     # Add a new axis for the top label
-    fig0.savefig('restart_multipanel.png',  \
-                 facecolor=fig0.get_facecolor(), edgecolor='none')
+    pdf.savefig(fig0)
+    plt.close(fig0)
 
     fig1=plt.figure(figsize=[9,8])
     fig1.patch.set_facecolor('linen')
@@ -240,15 +243,19 @@ def quadpanel_restplots(site,rvar,restart_datelist,n_rtypes):
     plt.grid(True)
     plt.gca().xaxis.set_major_locator(yearticks)
 
-
+    
 
     # Show the plot
-    return()
+    #return()
+    pdf.savefig(fig1)
+    plt.close(fig1)
 
 
 
-def multipanel_histplot(site,hvarlist,atype,n_htypes):
-    
+def multipanel_histplot(site,hvarlist,atype,n_htypes,pdf):
+
+    plt.ioff()
+
     count=50
     for hvar in hvarlist:
 
@@ -288,10 +295,18 @@ def multipanel_histplot(site,hvarlist,atype,n_htypes):
             count += 1
             if(count>4):
 
+                # In this case, a plot exists
+                # and needs to be pushed to the pdf file before
+                # we initialize a new figure in the next step
+                if(count!=51):
+                    pdf.savefig(figh)
+                    plt.close(figh)
+
                 figh = plt.figure(figsize=[9,8])
                 figh.patch.set_facecolor('linen')
                 figh.suptitle("{}".format(title_string), \
                           fontsize=14,horizontalalignment='center')
+
                 # initialize panel functions for a 2x2 multipanel plot
                 pdim0 = plotstruct(2,2)
                 count = 1
@@ -316,6 +331,9 @@ def multipanel_histplot(site,hvarlist,atype,n_htypes):
             plt.title(hvar.name)
             plt.grid(True)
         
+    # Save the current figure to the PDF
+    pdf.savefig(figh)
+    plt.close(figh)
 
     # Show the plot
-    return()
+    #return()
