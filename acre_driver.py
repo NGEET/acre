@@ -7,7 +7,6 @@
 #
 # This script is intended to diagnose the output of several single site runs, as a 
 # rapid visual and textual analysis on ecosystem response over a period of 5 - 50 years.  
-#
 # As a default, the user must provide the file-path to restart files. As a default,
 # plotting is turned off.
 #
@@ -299,7 +298,7 @@ def filter_rest_hist_sites(file,filetype,sites_known,geo_thresh):
 
         ## longitude data from the 1st history file
         lons = fp.variables['lon'].data
-        
+
         ## latitude data from the 1st history file
         lats = fp.variables['lat'].data
 
@@ -311,11 +310,28 @@ def filter_rest_hist_sites(file,filetype,sites_known,geo_thresh):
     ## list of sites that have confirmed coverage within the file
     #  this is a list of class sitetype
     sites_avail = []
+
+
+    neg_grid_lons =  np.any(lons<0.0)
+    bigpos_grid_lons = np.any(lons>180.0)
+
     
+
+    if(neg_grid_lons and bigpos_grid_lons):
+        print('Your model longitudes contain gcells that are both negative and >180?')
+        sys.exit(2)
+
     for site in sites_known:
 
         ## the gridcell index with the smallest squared difference
         # in geoposition with the current SOI
+
+        if(neg_grid_lons and site.lon>180.0):
+            site.lon = site.lon - 360.0
+
+        if(bigpos_grid_lons and site.lon<0):
+            site.lon = site.lon + 360
+
         
         if(filetype=='restart' or (hgrid==1) ):
             igr = np.argmin( (lons-site.lon)**2.0 + (lats-site.lat)**2.0 )
@@ -336,13 +352,13 @@ def filter_rest_hist_sites(file,filetype,sites_known,geo_thresh):
             ilat = np.argmin( (lats-site.lat)**2.0 )
             ilon = np.argmin( (lons-site.lon)**2.0 )
             if ( (((lons[ilon]-site.lon)**2.0 + (lats[ilat]-site.lat)**2.0)**0.5) < geo_thresh):
-                print('Site: '+site.name+' was located in the restart grid')
+                print('Site: '+site.name+' was located in the history grid')
                 sites_avail.append( sitetype(site.name,site.lat,site.lon)   )
                 sites_avail[-1].ilath=ilat
                 sites_avail[-1].ilonh=ilon
                 sites_avail[-1].hgrid=hgrid
             else:
-                print('Site: '+site.name+' was NOT located in the restart grid')
+                print('Site: '+site.name+' was NOT located in the history grid')
                 print('glon: '+str(lons[ilon])+' slon: '+str(site.lon)+' glat: '+str(lats[ilat])+' slat: '+str(site.lat))
         else:
             print('Uknown type (restart/history) and grid combination, exiting')
@@ -448,9 +464,9 @@ def interp_args(argv):
         
     if(regressionmode):
         print('Regression Testing is ON')
-        if(base_r_prefix==''):
+        if(base_h_prefix==''):
             print('In a regression style comparison, you must specify a')
-            print('path to baseline restarts. See usage:')
+            print('path to baseline history files. See usage:')
             usage()
             sys.exit(2)
         if(restartmode):
