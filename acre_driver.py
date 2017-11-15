@@ -728,7 +728,8 @@ def main(argv):
             else:
                 print('Omitting plots of monthly means, history frequency is too coarse')
 
-            if(hdims.hperiod<12):
+            
+            if(hdims.hperiod>12):
                 putils.multipanel_histplot(site,hvarlist,"DMV",n_htypes,pdf)
             else:
                 print('Omitting plots of diurnal means, history frequency is too coarse')
