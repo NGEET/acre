@@ -420,6 +420,8 @@ def load_history(file,site,hvarlist,htype,scr,hdims):
             # This is a 1D output, it is acceptable to condense the 
             # second [1] dimension.  The only question is whether or not the 
             # variable is a mean, normalized (like per plant), or a total
+            # 1 = sum
+            # 2 = mean
             # ----------------------------------------------------------------
 
             if(fp.variables[hvar.name].units=='kgC/m2/yr'):
