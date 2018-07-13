@@ -426,6 +426,8 @@ def load_history(file,site,hvarlist,htype,scr,hdims):
 
             if(fp.variables[hvar.name].units=='kgC/m2/yr'):
                 scale_type=1
+            if(fp.variables[hvar.name].units=='m2/ha'):
+                scale_type=1
             else:
                 print('Rescaling a 3d variables requires some understanding')
                 print('of its units. Type {} for variable {} is unknown'.format( \
