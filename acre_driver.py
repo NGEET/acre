@@ -33,6 +33,8 @@
 #
 # =======================================================================================
 
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
@@ -642,6 +644,7 @@ def main(argv):
 
     # Initialize the plot file
     # ========================================================================================
+
     plotfile_name = eval_id+"_plots.pdf"
     if(plotmode):
         pdf = PdfPages(plotfile_name)

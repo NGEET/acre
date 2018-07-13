@@ -1,4 +1,5 @@
-
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 #import code  # For development: code.interact(local=locals())
@@ -253,6 +254,8 @@ def quadpanel_restplots(site,rvar,restart_datelist,n_rtypes,pdf):
 
 def multipanel_histplot(site,hvarlist,atype,n_htypes,pdf):
 
+    plt.ioff()
+
     count=50
     for hvar in hvarlist:
 
@@ -292,14 +295,17 @@ def multipanel_histplot(site,hvarlist,atype,n_htypes,pdf):
             count += 1
             if(count>4):
 
+                # In this case, a plot exists
+                # and needs to be pushed to the pdf file before
+                # we initialize a new figure in the next step
+                if(count!=51):
+                    pdf.savefig(figh)
+                    plt.close(figh)
+
                 figh = plt.figure(figsize=[9,8])
                 figh.patch.set_facecolor('linen')
                 figh.suptitle("{}".format(title_string), \
                           fontsize=14,horizontalalignment='center')
-
-                if(count!=51):
-                    pdf.savefig(figh)
-                    plt.close(figh)
 
                 # initialize panel functions for a 2x2 multipanel plot
                 pdim0 = plotstruct(2,2)
