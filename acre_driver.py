@@ -446,9 +446,9 @@ def interp_args(argv):
         
     if(regressionmode):
         print('Regression Testing is ON')
-        if(base_r_prefix==''):
+        if(base_h_prefix==''):
             print('In a regression style comparison, you must specify a')
-            print('path to baseline restarts. See usage:')
+            print('path to baseline history files. See usage:')
             usage()
             sys.exit(2)
         if(restartmode):
