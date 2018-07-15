@@ -9,6 +9,7 @@
     <site tag="BCI, Panama">
       <lat> 9.1543 </lat>
       <lon> -79.8461 </lon>
+      <census_filename> place-holder-do-not-use.nc </census_filename>
     </site>
     
     <site tag="Korup, Cameroon">
