@@ -445,6 +445,7 @@ def interp_args(argv):
         print('Argument error, see usage')
         usage()
         sys.exit(2)
+
     for o, a in opts:
         if o in ("-h", "--help"):
             usage()
@@ -473,6 +474,7 @@ def interp_args(argv):
             base_name = a
         else:
             assert False, "unhandled option"
+
 
     if(plotmode):
         print('Plotting is ON')
@@ -715,16 +717,16 @@ def main(argv):
         scr = hutils.scratch_space(test_h0_list[0])
         
         for file in test_h0_list:
-            hutils.load_history(file,site,hvarlist,0,scr,hdims)
+            hutils.load_history(file,site,hvarlist,0,scr,hdims,census_bmark_mode)
 
             
         if(regressionmode):
             for file in base_h0_list:
-                hutils.load_history(file,site,hvarlist,1,scr,hdims)
+                hutils.load_history(file,site,hvarlist,1,scr,hdims,census_bmark_mode)
 
         for hvar in hvarlist:
             hvar.normalize_diagnostics()
-            
+
 
         # Initialize the restart variables.  This is a list of class hist_vars
         # found in the acre_history_utils module (hutils)

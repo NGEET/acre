@@ -2,7 +2,7 @@
 ## @package acre_history_utils a bunch of scripts that help interperate
 
 
-#import code   # For development: code.interact(local=locals())
+import code   # For development: code.interact(local=locals())
 import numpy as np
 import xml.etree.ElementTree as et
 from scipy.io import netcdf
@@ -342,7 +342,7 @@ class hist_vars:
 # @param htype (integer) 0 for test version, 1 for baseline version
 # @param scr (class) the scratch space for mathing things hard
 # @param hdims (class) information about the file dimensions
-def load_history(file,site,hvarlist,htype,scr,hdims):
+def load_history(file,site,hvarlist,htype,scr,hdims,census_bmark_mode):
 
     vectorizedates = False
 
@@ -448,6 +448,20 @@ def load_history(file,site,hvarlist,htype,scr,hdims):
                 if(scale_type==1):
                     scr.rawdata[:ntimes] = np.sum(fp.variables[hvar.name].data[:ntimes,:,site.igh],axis=scpf_dim).reshape(-1)
                     hvar.push_amvvec(scr.rawdata[:ntimes],scr.yrvec[:ntimes],htype)
+
+    # Loop through the census variables and see if they are in the file
+    if(census_bmark_mode and len(site.census_filename)>0 ):
+
+        # BA_SCPF    (SIZE x PFT)
+        # DDBH_SCPF  (SIZE x PFT)
+        # (M1_SCPF + M2_SCPF + M3_SCPF + M4_SCPF + M5_SCPF + M6_SCPF + M7_SCPF + M8_SCPF) / NPLANT_SCPF
+        # RECRUITMENT (PFT)
+
+        bvar
+
+        for hvar in hvarlist:
+            code.interact(local=locals())
+
 
     fp.close()
 
