@@ -342,7 +342,7 @@ class hist_vars:
 # @param htype (integer) 0 for test version, 1 for baseline version
 # @param scr (class) the scratch space for mathing things hard
 # @param hdims (class) information about the file dimensions
-def load_history(file,site,hvarlist,htype,scr,hdims,census_bmark_mode):
+def load_history(file,site,hvarlist,htype,scr,hdims):
 
     vectorizedates = False
 
@@ -365,9 +365,6 @@ def load_history(file,site,hvarlist,htype,scr,hdims,census_bmark_mode):
             scr.yrvec[it] = np.int16(year)-hdims.yeara
             scr.movec[it] = np.int16(moy)-1
             scr.hrvec[it] = np.int16(hod)-1
-#            print('yyyymd[it]:',yyyymmdd[it],'sec[it]',sec[it],'dbs',date_bounds[it,:]) 
-#            print(year,moy,dom,hod)
-#            print('id: ',it,'year: ',scr.yrvec[it],' month: ',scr.movec[it],' hour: ',scr.hrvec[it])
 
     else:
         scr.hist_dateints_to_nums(yyyymmdd,sec,hdims.yeara)
@@ -450,17 +447,13 @@ def load_history(file,site,hvarlist,htype,scr,hdims,census_bmark_mode):
                     hvar.push_amvvec(scr.rawdata[:ntimes],scr.yrvec[:ntimes],htype)
 
     # Loop through the census variables and see if they are in the file
-    if(census_bmark_mode and len(site.census_filename)>0 ):
+    #if(census_bmark_mode and len(site.census_filename)>0 ):
 
         # BA_SCPF    (SIZE x PFT)
         # DDBH_SCPF  (SIZE x PFT)
         # (M1_SCPF + M2_SCPF + M3_SCPF + M4_SCPF + M5_SCPF + M6_SCPF + M7_SCPF + M8_SCPF) / NPLANT_SCPF
         # RECRUITMENT (PFT)
 
-        bvar
-
-        for hvar in hvarlist:
-            code.interact(local=locals())
 
 
     fp.close()

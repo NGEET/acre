@@ -45,6 +45,7 @@ import acre_history_utils as hutils
 import acre_restart_utils as rutils
 import acre_plot_utils as putils
 import acre_table_utils as tutils
+import acre_benchmark_utils as butils
 
 # =======================================================================================
 # Some Global Parmaeters
@@ -87,15 +88,16 @@ class sitetype:
         ## The associated grid-index of the history file (index grid history = igh)
         self.igh  = -9
 
-        ## The file-name associated with core census data (if it exists)
-        self.census_filename = census_filename
-
         ## If a gridded simulation, instead of lndgrid we have 2d geographic coordinates
         self.ilath = -9
         self.ilonh = -9
 
         ## This index specifies what type of history grid we have
         self.hgrid = -9
+
+        ## This is the benchmark object
+
+        self.benchmarks = butils.benchmark_obj(census_filename)
 
         
 # =======================================================================================
@@ -713,6 +715,9 @@ def main(argv):
         print('')
         print('Loading test case h0 files at site: '+site.name)
         
+        site.benchmarks
+
+
         
         scr = hutils.scratch_space(test_h0_list[0])
         
