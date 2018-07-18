@@ -359,7 +359,7 @@ def filter_rest_hist_sites(file,filetype,sites_known,geo_thresh):
 
             if ( (((lons[igr]-site.lon)**2.0 + (lats[igr]-site.lat)**2.0)**0.5) < geo_thresh):
                 print('Site: '+site.name+' was located in the restart grid')
-                sites_avail.append( sitetype(site.name,site.lat,site.lon,site.census_filename)   )
+                sites_avail.append( sitetype(site.name,site.lat,site.lon,site.benchmarks.census_filename)   )
                 if(filetype=='restart'):
                     sites_avail[-1].igr = igr
                 else:
@@ -374,7 +374,7 @@ def filter_rest_hist_sites(file,filetype,sites_known,geo_thresh):
             ilon = np.argmin( (lons-site.lon)**2.0 )
             if ( (((lons[ilon]-site.lon)**2.0 + (lats[ilat]-site.lat)**2.0)**0.5) < geo_thresh):
                 print('Site: '+site.name+' was located in the history grid')
-                sites_avail.append( sitetype(site.name,site.lat,site.lon,site.census_filename)   )
+                sites_avail.append( sitetype(site.name,site.lat,site.lon,site.benchmarks.census_filename)   )
                 sites_avail[-1].ilath=ilat
                 sites_avail[-1].ilonh=ilon
                 sites_avail[-1].hgrid=hgrid
@@ -688,6 +688,15 @@ def main(argv):
     hvarlist = hutils.define_histvars(xmlfile,hdims,test_h0_list[0],n_htypes,test_name,base_name)
 
 
+    # ===================================================================================
+    # Evaluate the first history file to see if benchmark data is present
+    # ===================================================================================
+
+    for site in sites_avail:
+        site.benchmarks.init_history(test_h0_list[0],n_htypes)
+
+
+
     # Initialize the plot file
     # ========================================================================================
 
@@ -715,22 +724,27 @@ def main(argv):
         print('')
         print('Loading test case h0 files at site: '+site.name)
         
-        site.benchmarks
-
-
-        
         scr = hutils.scratch_space(test_h0_list[0])
         
         for file in test_h0_list:
-            hutils.load_history(file,site,hvarlist,0,scr,hdims,census_bmark_mode)
+            hutils.load_history(file,site,hvarlist,0,scr,hdims)
 
             
         if(regressionmode):
             for file in base_h0_list:
-                hutils.load_history(file,site,hvarlist,1,scr,hdims,census_bmark_mode)
+                hutils.load_history(file,site,hvarlist,1,scr,hdims)
 
         for hvar in hvarlist:
             hvar.normalize_diagnostics()
+
+
+        # Load history data into benchmark structures
+        for file in test_h0_list:
+            site.benchmarks.load_history(file,0,site.igh)
+
+        if(regressionmode):
+            for file in base_h0_list:
+                site.benchmarks.load_history(file,1,site.igh)
 
 
         # Initialize the restart variables.  This is a list of class hist_vars

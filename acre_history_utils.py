@@ -446,15 +446,6 @@ def load_history(file,site,hvarlist,htype,scr,hdims):
                     scr.rawdata[:ntimes] = np.sum(fp.variables[hvar.name].data[:ntimes,:,site.igh],axis=scpf_dim).reshape(-1)
                     hvar.push_amvvec(scr.rawdata[:ntimes],scr.yrvec[:ntimes],htype)
 
-    # Loop through the census variables and see if they are in the file
-    #if(census_bmark_mode and len(site.census_filename)>0 ):
-
-        # BA_SCPF    (SIZE x PFT)
-        # DDBH_SCPF  (SIZE x PFT)
-        # (M1_SCPF + M2_SCPF + M3_SCPF + M4_SCPF + M5_SCPF + M6_SCPF + M7_SCPF + M8_SCPF) / NPLANT_SCPF
-        # RECRUITMENT (PFT)
-
-
 
     fp.close()
 
