@@ -96,7 +96,7 @@ class benchmark_obj:
                     fates_levscls       = fp.variables['fates_levscls'].data
                     fates_scmap_levscpf = fp.variables['fates_scmap_levscpf'].data
                     
-                    code.interact(local=locals())
+#                    code.interact(local=locals())
 
                     #                    self.scv_x
                     d_sizes = fp.variables[bvar.mod_symbol].shape
