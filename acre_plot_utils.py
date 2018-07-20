@@ -252,6 +252,8 @@ def quadpanel_restplots(site,rvar,restart_datelist,n_rtypes,pdf):
 
 
 
+
+
 def multipanel_histplot(site,hvarlist,atype,n_htypes,pdf):
 
     plt.ioff()

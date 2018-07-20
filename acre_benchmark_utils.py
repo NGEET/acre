@@ -4,6 +4,7 @@ import xml.etree.ElementTree as et
 from scipy.io import netcdf
 import matplotlib.dates as mdates
 from datetime import datetime, timedelta
+import matplotlib.pyplot as plt
 
 
 # BA_SCPF    (SIZE x PFT)
@@ -71,10 +72,34 @@ class benchmark_obj:
                         print(' have the correct dimensions: {}... exiting'.format(dims))
                         exit(2)
 
+                    fates_levscls = fp.variables['fates_levscls'].data
+
+                    if (fates_levscls[0] == 0.0):
+                        bvar.offset0 = True
+
+                        if(fates_levscls.size-1 != bvar.scv_obs_ar.shape[0]):
+                            print('Dimensions of model output size-classes dont match observations')
+                        for isc,scvar in enumerate(fates_levscls[1:]):
+                            if( np.abs(scvar- bvar.scv_x[isc])>1.0e-10 ):
+                                print('Dimensions of model output size-classes dont match observations')
+                                print('Observed classes: {}'.format(bvar.scv_x))
+                                print('Modeled (0 is ignored): {}',format(fates_levscls))
+
+                    else:
+                        bvar.offset0 = False
+                        if(fates_levscls.size != bvar.scv_obs_ar.shape[0]):
+                            print('Dimensions of model output size-classes dont match observations')
+                        for isc,scvar in enumerate(fates_levscls[:]):
+                            if( np.abs(scvar- bvar.scv_x[isc])>1.0e-10 ):
+                                print('Dimensions of model output size-classes dont match observations')
+                                print('Observed classes: {}'.format(bvar.scv_x))
+                                print('Modeled (0 is ignored): {}',format(fates_levscls))
+
+
                     d_sizes = bvar.scv_obs_ar.shape
-                    bvar.mod = []
+                    bvar.modlist = []
                     for imod in range(n_htypes):
-                        bvar.mod.append(mod_scv_array(d_sizes[0]))
+                        bvar.modlist.append(mod_scv_array(d_sizes[0]))
 
         fp.close()
     
@@ -96,9 +121,6 @@ class benchmark_obj:
                     fates_levscls       = fp.variables['fates_levscls'].data
                     fates_scmap_levscpf = fp.variables['fates_scmap_levscpf'].data
                     
-#                    code.interact(local=locals())
-
-                    #                    self.scv_x
                     d_sizes = fp.variables[bvar.mod_symbol].shape
                     # fates_scmap_levscpf
                     # These are the expected dimensions
@@ -107,13 +129,18 @@ class benchmark_obj:
                     for itime in range(d_sizes[0]):
                         for isc,isc_map0 in enumerate(fates_scmap_levscpf):
                             
-                            isc_map = isc_map0-1
-                            print(isc_map,isc)
-                            bvar.mod[h_index].var_ar[isc_map] = \
-                                                                ( bvar.mod[h_index].var_ar[isc_map] * bvar.mod[h_index].var_n[isc_map] \
-                                                                  + fp.variables[bvar.mod_symbol].data[itime,isc,site_index] ) \
-                                                                / (bvar.mod[h_index].var_n[isc_map] + 1.0)
-                            bvar.mod[h_index].var_n[isc_map] = bvar.mod[h_index].var_n[isc_map] + 1.0
+                            if ( (bvar.offset0 == False) or ((bvar.offset0 == True)and(isc_map0-1 != 0 ))   ):
+
+                                isc_map = isc_map0-1
+
+                                if(bvar.offset0 == False): arr_map = isc_map
+                                if(bvar.offset0 == True):  arr_map = isc_map-1
+
+                                bvar.modlist[h_index].var_ar[arr_map] = \
+                                                                    ( bvar.modlist[h_index].var_ar[arr_map] * bvar.modlist[h_index].var_n[arr_map] \
+                                                                    + fp.variables[bvar.mod_symbol].data[itime,isc,site_index] ) \
+                                                                    / (bvar.modlist[h_index].var_n[arr_map] + 1.0)
+                                bvar.modlist[h_index].var_n[arr_map] = bvar.modlist[h_index].var_n[arr_map] + 1.0
 
                 
                 else:
@@ -177,14 +204,15 @@ class benchmark_vars:
                 print('expected census data to have cens as first dimension: {}'.format(dim_names))
                 print('exiting')
                 exit(2)
-
+            
             # Condense the census dimension into 1 size
             self.scv_obs_ar      = np.zeros((d_sizes[1],d_sizes[2]))
             self.scv_obs_ar[:,:] = np.mean(fp.variables[self.obs_symbol].data, axis=0 )
 
             # Note that the dimensions in the census dictate the output dimension
             self.scv_x           = np.zeros((d_sizes[1],1))
-            self.scv_x[:]        = fp.variables['dclass'].data.resize(d_sizes[1],1)
+            fp.variables['dclass'].data.resize(self.scv_x.shape)
+            self.scv_x[:]        = fp.variables['dclass'].data
             self.scv_x_unit      = 'DBH [cm]'
 
         else:
@@ -202,6 +230,24 @@ class mod_scv_array:
 
 
 
-#def push_scpf_to_sc():
+def plot_bmarks(site,pdf):
 
 
+    # Plot size structured benchmarks
+    rline_types = ["k-","b--"]
+    moline_types = ["ko-","b^--"]
+    marksize = 10
+
+    for bvar in bvarlist:
+
+        plt.ioff()
+
+        if( bvar.obs_dimclass == 'size-class' ):
+
+            
+            plt.plot(bvar.scv_x,bvar.scv_obs_ar[:,2])
+        
+            for imod, mod in enumerate(bvar.modlist):
+                plt.plot(bvar.scv_x,mod.var_ar, \
+                         "{}".format(moline_types[imod]),markersize=marksize, \
+                         label="SAUCE{}")
