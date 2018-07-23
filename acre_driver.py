@@ -33,7 +33,7 @@
 # =======================================================================================
 
 import matplotlib as mpl
-mpl.use('Agg')
+#mpl.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
@@ -768,7 +768,15 @@ def main(argv):
 
 
         print('Site {} Diagnosed in {} seconds'.format(site.name,(time.time()-start_time)))
+
         if(plotmode):
+
+
+            # Plot out benchmark info
+            # No conditionals necessary, the lists will be empty if
+            # nothing to plot
+            butils.plot_bmarks(site,pdf)
+
 
             if(hdims.hperiod<=(24*32)):
                 putils.multipanel_histplot(site,hvarlist,"MMV",n_htypes,pdf)
