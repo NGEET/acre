@@ -40,7 +40,7 @@ class benchmark_obj:
 
         if(census_filename.strip() != ''):
             
-            print(census_filename)
+            print("Loading census file: {}".format(census_filename))
             
             fp = netcdf.netcdf_file(census_filename, 'r', mmap=False)
 
@@ -230,7 +230,6 @@ class benchmark_obj:
                                         local_var = local_vars.sum()
                                     elif(bvar.vartype == 'rate'):
                                         local_var = local_vars.mean()
-                                        print('entered {}'.format(local_vars))
                                     else:
                                         print('Unknown vartype')
                                         exit(2)
@@ -374,16 +373,16 @@ def plot_bmarks(site,pdf):
             ax.plot(obs_x,obs_mean,color = obs_mean_color,label="Census")
             ax.fill_between(obs_x, obs_ci_low , obs_ci_high,facecolor = obs_ci_color )
 
-            print("OBS SUM:{}".format(np.sum(obs_mean)))
+            print("Site: {}, Variable {}, Census sum:{}".format(site.name,bvar.name,np.sum(obs_mean)))
 
             for imod, mod in enumerate(bvar.modlist):
                 ax.plot(bvar.scv_x,mod.var_ar, \
                          "{}".format(moline_types[imod]),markersize=marksize, \
                          label="Model")
-                print("MOD SUM: {}".format(np.sum(mod.var_ar)))
+                
+                print("Site: {}, Variable {}, Model sum: {}".format(site.name,bvar.name,np.sum(mod.var_ar)))
 
 
-            #            code.interact(local = dict(globals(), **locals()))
             ax.set_xlabel(bvar.scv_x_unit)
             ax.set_ylabel(bvar.unit)
             ax.set_title(bvar.name)
