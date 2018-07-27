@@ -7,6 +7,28 @@ from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import math
 
+
+# =============================================================================
+#
+# This module processes and compares model output to census benchmarks.
+# Currently, this module assumes that FATES size structured outputs are
+# available.  Benchmarks are prepared in another script, one such script
+# is the NGEET/tools_benchmarking_evaluation set.
+#
+# Here is the list of model output needed:
+#
+# Basal Area:         BA_SCPF    (SIZE x PFT)
+# Diameter Increment: DDBH_SCPF  (SIZE x PFT) / NPLANT_SCPF
+# Mortality Rate:     (M1_SCPF + M2_SCPF + M3_SCPF + M4_SCPF + M5_SCPF + 
+#                                M6_SCPF + M7_SCPF + M8_SCPF) / NPLANT_SCPF
+# Recruitment Rate:   RECRUITMENT (PFT)
+#
+# 
+#
+#
+# =============================================================================
+
+
 # The CTFS processed files use an invalid flag of -9e+30
 # We will consider anything very large negative invalid
 
@@ -81,6 +103,19 @@ class benchmark_obj:
                                                       unit         = '/yr', \
                                                       vartype      = 'rate'))
                 self.bvarlist[-1].load_census(fp)
+
+            cens_var_name = 'new_recruits_by_census'
+            if (fp.variables.has_key(cens_var_name)):
+                self.bvarlist.append(benchmark_vars(  name         = 'Recruitment Rate', \
+                                                      mod_symbols  = 'RECRUITMENT', \
+                                                      obs_symbol   = cens_var_name, \
+                                                      mod_dimclass = 'pft',      \
+                                                      obs_dimclass = 'scalar', \
+                                                      unit         = 'indv ha-1 yr-1', \
+                                                      vartype      = 'quantity'))
+                self.bvarlist[-1].load_census(fp)
+
+
             else:
                 print('Census variable: '+cens_var_name+', was not found in the census file')
             
@@ -145,6 +180,23 @@ class benchmark_obj:
                     for imod in range(n_htypes):
                         bvar.modlist.append(mod_scv_array(d_sizes[0]))
 
+
+                elif( bvar.mod_dimclass == 'pft' ):
+
+                    dims = fp.variables[bvar.mod_symbols[0]].dimensions
+                    if(dims[1] != 'fates_levpft'):
+                        print('A PFT benchmark variable: {} does not actually'.format(bvar.mod_symbols[0]))
+                        print(' have the correct dimensions: {}... exiting'.format(dims))
+                        exit(2)
+
+                    fates_levpft = fp.variables['fates_levpft'].data
+                    scalar_size  = 1
+                    bvar.modlist = []
+                    for imod in range(n_htypes):
+                        bvar.modlist.append(mod_scv_array(scalar_size))
+                    
+
+
         fp.close()
     
     # ===================================================================================
@@ -160,48 +212,74 @@ class benchmark_obj:
         for bvar in self.bvarlist:
 
             if(bvar.active):
+                
+                d_sizes = fp.variables[bvar.mod_symbols[0]].shape
 
-                if( (bvar.obs_dimclass=='size-class') and (bvar.mod_dimclass=='scpf') ):
+                hist_arr = np.ma.zeros(fp.variables[bvar.mod_symbols[0]].shape)
+
+                if(bvar.vartype == 'quantity'):
+                    for mod_symbol in bvar.mod_symbols:
+                        hist_arr = hist_arr + fp.variables[mod_symbol].data
+
+                elif( (bvar.vartype == 'rate') and (bvar.mod_dimclass=='scpf') ):
+
+                    # Mask out when there are no cohort counts
+                    hist_arr[fp.variables[nplant_scpf_name].data <= 0.] = np.ma.masked
+                    
+                    for mod_symbol in bvar.mod_symbols:
+                        hist_arr = hist_arr + \
+                                   fp.variables[mod_symbol].data / fp.variables[nplant_scpf_name].data
+
+                else:
+                    print("Unhandled variable type submitted to registry: {}".format(bvar.vartype))
+                    print("Must be one of: quantity or rate.  Exiting")
+                    exit(2)
+
+                # Mask if the variable has a no data flag
+                hist_arr[hist_arr.data<invalid_flag] = np.ma.masked
+
+
+                if( (bvar.obs_dimclass=='scalar') and (bvar.mod_dimclass == 'pft') ):
+
+
+                    # These are the expected dimensions
+                    # (time, fates_levpft, lndgrid) ;
+
+                    for itime in range(d_sizes[0]):
+
+                        # Loop PFTs
+                        local_vars = hist_arr[itime,:,site_index]
+
+                        if ( np.ma.count(local_vars)>0 ):
+                            if(bvar.vartype == 'quantity'):
+                                local_var = local_vars.sum()
+                            elif(bvar.vartype == 'rate'):
+                                local_var = local_vars.mean()
+                            else:
+                                print('Unknown vartype')
+                                exit(2)
+
+                            bvar.modlist[h_index].var_ar[0] = ( bvar.modlist[h_index].var_ar[0] \
+                                                                * bvar.modlist[h_index].var_n[0] \
+                                                                + local_var) / (bvar.modlist[h_index].var_n[0] + 1.0)
+                            bvar.modlist[h_index].var_n[0] = bvar.modlist[h_index].var_n[0] + 1.0
+
+
+                elif( (bvar.obs_dimclass=='size-class') and (bvar.mod_dimclass=='scpf') ):
 
                     # Create a mapping between FATES size-classes and the SCPF map
                     # ------------------------------------------------------------
                     fates_levscls       = fp.variables['fates_levscls'].data
                     fates_scmap_levscpf = fp.variables['fates_scmap_levscpf'].data
-                    
-                    
+
                     # fates_scmap_levscpf
                     # These are the expected dimensions
                     # ('time', 'fates_levscpf', 'lndgrid')
-                    d_sizes = fp.variables[bvar.mod_symbols[0]].shape
-
-                    hist_arr = np.ma.zeros(fp.variables[bvar.mod_symbols[0]].shape)
-
                     
-                    if(bvar.vartype == 'quantity'):
 
-                        for mod_symbol in bvar.mod_symbols:
-                            hist_arr = hist_arr + fp.variables[mod_symbol].data
-
-                    elif(bvar.vartype == 'rate'):
-                        
-                        #                        code.interact(local = dict(globals(), **locals()))
-                        for mod_symbol in bvar.mod_symbols:
-                            hist_arr = hist_arr + \
-                                        fp.variables[mod_symbol].data / fp.variables[nplant_scpf_name].data
-                            
-                        # Mask out when there are no cohort counts
-                        hist_arr[fp.variables[nplant_scpf_name].data <= 0.] = np.ma.masked
-                        
-                        # For rates... we are encountering some weird behavior where some files are not reporting
-                        hist_arr[hist_arr.data <= 0.] = np.ma.masked
-
-                    else:
-                        print("Unhandled variable type submitted to registry: {}".format(bvar.vartype))
-                        print("Must be one of: quantity or rate.  Exiting")
-                        exit(2)
-
-                    # Mask again if the variable has a no data flag
-                    hist_arr[hist_arr.data<invalid_flag] = np.ma.masked
+                    # Mask out when there are no cohort counts
+                    hist_arr[fp.variables[nplant_scpf_name].data <= 0.] = np.ma.masked
+                    
 
                     for itime in range(d_sizes[0]):
 
@@ -318,7 +396,6 @@ class benchmark_vars:
             masked_data = np.ma.array(fp.variables[self.obs_symbol].data, \
                                       mask=fp.variables[self.obs_symbol].data<invalid_flag)
 
-
             self.scv_obs_ar[:,0] = masked_data[:,:,0].min(axis=0).data
             self.scv_obs_ar[:,1] = masked_data[:,:,1].mean(axis=0).data
             self.scv_obs_ar[:,2] = masked_data[:,:,2].max(axis=0).data
@@ -330,6 +407,29 @@ class benchmark_vars:
             self.scv_x[:]        = fp.variables['dclass'].data
             self.scv_x_unit      = 'DBH [cm]'
 
+        elif(self.obs_dimclass == 'scalar' ):
+            
+            if(dim_names[0] != 'cens'):
+                print('expected census data to have cens as first dimension: {}'.format(dim_names))
+                print('exiting')
+                exit(2)
+
+            # Condense the census dimension into 1 size (confidence interval)
+            self.scv_obs_ar      = np.zeros((d_sizes[1]))
+
+            # This is the mean across census intervals
+            # AND... the lowest lower bound CI across census, 
+            # and... the highest upper bound CI across census
+            
+            # Mask out bad data (for rates of change, probably missing
+            # first census, or perhaps lowest
+            masked_data = np.ma.array(fp.variables[self.obs_symbol].data, \
+                                      mask=fp.variables[self.obs_symbol].data<invalid_flag)
+
+            self.scv_obs_ar[0] = masked_data[:,0].min()
+            self.scv_obs_ar[1] = masked_data[:,1].mean()
+            self.scv_obs_ar[2] = masked_data[:,2].max()
+
         else:
             print('The census variable: {},   with dim-type: {}'.format(self.obs_symbol,self.obs_dimclass))
             print(' does not have dimensions set-up yet. Exiting')
@@ -340,8 +440,8 @@ class mod_scv_array:
 
     def __init__(self,d_size):
     
-        self.var_ar =  np.zeros((d_size,1))
-        self.var_n  =  np.zeros((d_size,1))
+        self.var_ar =  np.zeros((d_size))
+        self.var_n  =  np.zeros((d_size))
 
 
 
@@ -358,10 +458,11 @@ def plot_bmarks(site,pdf):
     #    code.interact(local = dict(globals(), **locals()))
     for bvar in site.benchmarks.bvarlist:
 
-        fig, ax = plt.subplots()
         
-
+        
         if( bvar.obs_dimclass == 'size-class' ):
+
+            fig, ax = plt.subplots()
 
             n_x         = bvar.scv_x.size
             obs_x       = np.resize(bvar.scv_x,(n_x))
@@ -390,6 +491,54 @@ def plot_bmarks(site,pdf):
 
             ax.legend(loc='upper left')
         
-        fig.suptitle("{}".format(site.name),fontsize=14,horizontalalignment='center')
-        pdf.savefig(fig)
-        plt.close(fig)
+            fig.suptitle("{}".format(site.name),fontsize=14,horizontalalignment='center')
+            pdf.savefig(fig)
+            plt.close(fig)
+
+
+    fig, ax = plt.subplots()
+    textstr = ""
+
+    for bvar in site.benchmarks.bvarlist:
+
+        if( bvar.obs_dimclass == 'size-class' ):
+
+            if (bvar.vartype == 'quantity'):
+                obs_var     = np.sum(bvar.scv_obs_ar[:,1])
+                obs_ci_low  = np.sum(bvar.scv_obs_ar[:,0])
+                obs_ci_high = np.sum(bvar.scv_obs_ar[:,2])
+
+            elif (bvar.vartype == 'rate'):
+                obs_var     = np.mean(bvar.scv_obs_ar[:,1])
+                obs_ci_low  = np.mean(bvar.scv_obs_ar[:,0])
+                obs_ci_high = np.mean(bvar.scv_obs_ar[:,2])
+
+        elif( bvar.obs_dimclass == 'scalar' ):
+            
+            obs_var     = bvar.scv_obs_ar[1]
+            obs_ci_low  = bvar.scv_obs_ar[0]
+            obs_ci_high = bvar.scv_obs_ar[2]
+            
+        else:
+            print("incorrect observation dimension class specified")
+            exit(2)
+            
+
+        textstr = textstr+"{} [{}]\n".format(bvar.name,bvar.unit)
+        textstr = textstr+"   Census: {} \n".format(obs_var)
+
+        for imod, mod in enumerate(bvar.modlist):
+            if (bvar.vartype == 'quantity'):
+                mod_var = np.sum(mod.var_ar)
+            elif(bvar.vartype == 'rate'):
+                mod_var = np.mean(mod.var_ar)
+            textstr = textstr+"   Model:  {} \n\n".format(mod_var)
+
+        textstr = textstr+"\n"
+
+    plt.axis('off')
+    ax.text(0.05, 0.95, textstr, transform=ax.transAxes, fontsize=14,
+    verticalalignment='top')
+
+    pdf.savefig(fig)
+    plt.close(fig)
