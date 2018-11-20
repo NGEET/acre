@@ -692,8 +692,9 @@ def main(argv):
     # Evaluate the first history file to see if benchmark data is present
     # ===================================================================================
 
-    for site in sites_avail:
-        site.benchmarks.init_history(test_h0_list[0],n_htypes)
+    if(census_bmark_mode):
+        for site in sites_avail:
+            site.benchmarks.init_history(test_h0_list[0],n_htypes)
 
 
 
@@ -739,8 +740,9 @@ def main(argv):
 
 
         # Load history data into benchmark structures
-        for file in test_h0_list:
-            site.benchmarks.load_history(file,0,site.igh)
+        if(census_bmark_mode):
+            for file in test_h0_list:
+                site.benchmarks.load_history(file,0,site.igh)
 
         if(regressionmode):
             for file in base_h0_list:
@@ -775,7 +777,8 @@ def main(argv):
             # Plot out benchmark info
             # No conditionals necessary, the lists will be empty if
             # nothing to plot
-            butils.plot_bmarks(site,pdf)
+            if(census_bmark_mode):
+                butils.plot_bmarks(site,pdf)
 
 
             if(hdims.hperiod<=(24*32)):
