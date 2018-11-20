@@ -365,9 +365,6 @@ def load_history(file,site,hvarlist,htype,scr,hdims):
             scr.yrvec[it] = np.int16(year)-hdims.yeara
             scr.movec[it] = np.int16(moy)-1
             scr.hrvec[it] = np.int16(hod)-1
-#            print('yyyymd[it]:',yyyymmdd[it],'sec[it]',sec[it],'dbs',date_bounds[it,:]) 
-#            print(year,moy,dom,hod)
-#            print('id: ',it,'year: ',scr.yrvec[it],' month: ',scr.movec[it],' hour: ',scr.hrvec[it])
 
     else:
         scr.hist_dateints_to_nums(yyyymmdd,sec,hdims.yeara)
@@ -448,6 +445,7 @@ def load_history(file,site,hvarlist,htype,scr,hdims):
                 if(scale_type==1):
                     scr.rawdata[:ntimes] = np.sum(fp.variables[hvar.name].data[:ntimes,:,site.igh],axis=scpf_dim).reshape(-1)
                     hvar.push_amvvec(scr.rawdata[:ntimes],scr.yrvec[:ntimes],htype)
+
 
     fp.close()
 

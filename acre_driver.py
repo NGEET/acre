@@ -45,6 +45,7 @@ import acre_history_utils as hutils
 import acre_restart_utils as rutils
 import acre_plot_utils as putils
 import acre_table_utils as tutils
+import acre_benchmark_utils as butils
 
 # =======================================================================================
 # Some Global Parmaeters
@@ -74,7 +75,7 @@ class sitetype:
     # @param name The name (text string) of the SOI
     # @param lat  The latitude of the SOI in decimal degrees
     # @param lon  The longitude of the SOI in decimal degrees
-    def __init__(self,name,lat,lon):
+    def __init__(self,name,lat,lon,census_filename):
         
         ## The name (text string) of the SOI
         self.name = name  
@@ -86,12 +87,17 @@ class sitetype:
         self.igr  = -9     
         ## The associated grid-index of the history file (index grid history = igh)
         self.igh  = -9
+
         ## If a gridded simulation, instead of lndgrid we have 2d geographic coordinates
         self.ilath = -9
         self.ilonh = -9
 
         ## This index specifies what type of history grid we have
         self.hgrid = -9
+
+        ## This is the benchmark object
+
+        self.benchmarks = butils.benchmark_obj(census_filename)
 
         
 # =======================================================================================
@@ -157,9 +163,16 @@ def load_sites(xmlfile,sitetype):
         name = elem.attrib['tag']
         lat  = float(elem.find('lat').text)
         lon  = float(elem.find('lon').text)
+
+        census_obj = elem.find('census_filename')
+        if( census_obj is not None ):
+            census_filename = census_obj.text.strip()
+        else:
+            census_filename = ''
+
         if(lon<0):
             lon = 360.0+lon
-        sites.append(sitetype(name,lat,lon))
+        sites.append(sitetype(name,lat,lon,census_filename))
 
     return(sites)
 
@@ -194,6 +207,14 @@ def usage():
      print('     [Optional] logical switch, turns on regression tests')
      print('     against a baseline. Requires user to also set --base-rest-pref')
      print('     default is False')
+     print('')
+     print(' --census-bmark-mode')
+     print('     [Optional] logical switch, turns on the site-level benchmarking mode.')
+     print('     Only sites in the XML control file with a census_filename file specified')
+     print('     will use this functionality.  Matching grid-cell model output will be compared')
+     print('     against size structured: basal area, growth increments, mortality rates')
+     print('     and recruitment.  The core census data must have strict format compliance')
+     print('     of variable names and dimensions.')
      print('')
      print(' --restartmode')
      print('     [Optional] logical switch, turns on evaluations of restart type output')
@@ -338,7 +359,7 @@ def filter_rest_hist_sites(file,filetype,sites_known,geo_thresh):
 
             if ( (((lons[igr]-site.lon)**2.0 + (lats[igr]-site.lat)**2.0)**0.5) < geo_thresh):
                 print('Site: '+site.name+' was located in the restart grid')
-                sites_avail.append( sitetype(site.name,site.lat,site.lon)   )
+                sites_avail.append( sitetype(site.name,site.lat,site.lon,site.benchmarks.census_filename)   )
                 if(filetype=='restart'):
                     sites_avail[-1].igr = igr
                 else:
@@ -353,7 +374,7 @@ def filter_rest_hist_sites(file,filetype,sites_known,geo_thresh):
             ilon = np.argmin( (lons-site.lon)**2.0 )
             if ( (((lons[ilon]-site.lon)**2.0 + (lats[ilat]-site.lat)**2.0)**0.5) < geo_thresh):
                 print('Site: '+site.name+' was located in the history grid')
-                sites_avail.append( sitetype(site.name,site.lat,site.lon)   )
+                sites_avail.append( sitetype(site.name,site.lat,site.lon,site.benchmarks.census_filename)   )
                 sites_avail[-1].ilath=ilat
                 sites_avail[-1].ilonh=ilon
                 sites_avail[-1].hgrid=hgrid
@@ -397,6 +418,8 @@ def interp_args(argv):
     regressionmode = False
     ## Binary flag that turns on and off the use of restart files for evaluation and comparison
     restartmode = False
+    ## Binary flag that turns on and off cnesus benchmarking
+    census_bmark_mode = False
     ## File path to the directory containing restart files from that baseline simulation
     base_r_prefix  = ''
     ## File path to the directory containing restart files from the test simulation
@@ -414,7 +437,8 @@ def interp_args(argv):
 
     try:
         opts, args = getopt.getopt(argv, 'h',["help","plotmode","regressmode",     \
-                                              "restartmode","eval-id=",            \
+                                              "restartmode","census-bmark-mode", \
+                                              "eval-id=",            \
                                               "test-rest-pref=","base-rest-pref=", \
                                               "test-hist-pref=","base-hist-pref=", \
                                               "test-name=","base-name="])
@@ -423,6 +447,7 @@ def interp_args(argv):
         print('Argument error, see usage')
         usage()
         sys.exit(2)
+
     for o, a in opts:
         if o in ("-h", "--help"):
             usage()
@@ -433,6 +458,8 @@ def interp_args(argv):
             regressionmode = True
         elif o in ("--restartmode"):
             restartmode = True
+        elif o in ("--census-bmark-mode"):
+            census_bmark_mode = True
         elif o in ("--eval-id"):
             eval_id = a
         elif o in ("--test-rest-pref"):
@@ -449,6 +476,7 @@ def interp_args(argv):
             base_name = a
         else:
             assert False, "unhandled option"
+
 
     if(plotmode):
         print('Plotting is ON')
@@ -492,8 +520,9 @@ def interp_args(argv):
     eval_id.replace(" ","")
         
 
-    return (plotmode, regressionmode, restartmode, eval_id, test_r_prefix, \
-                base_r_prefix, test_h_prefix, base_h_prefix, test_name, base_name)
+    return (plotmode, regressionmode, restartmode, census_bmark_mode, \
+            eval_id, test_r_prefix, \
+            base_r_prefix, test_h_prefix, base_h_prefix, test_name, base_name)
 
 
 
@@ -507,7 +536,8 @@ def interp_args(argv):
 def main(argv):
 
     # Interpret the arguments to the script
-    plotmode, regressionmode, restartmode, eval_id, test_r_prefix, \
+    plotmode, regressionmode, restartmode, census_bmark_mode, \
+        eval_id, test_r_prefix, \
         base_r_prefix, test_h_prefix, base_h_prefix, \
         test_name, base_name = interp_args(argv)
     
@@ -658,6 +688,16 @@ def main(argv):
     hvarlist = hutils.define_histvars(xmlfile,hdims,test_h0_list[0],n_htypes,test_name,base_name)
 
 
+    # ===================================================================================
+    # Evaluate the first history file to see if benchmark data is present
+    # ===================================================================================
+
+    if(census_bmark_mode):
+        for site in sites_avail:
+            site.benchmarks.init_history(test_h0_list[0],n_htypes)
+
+
+
     # Initialize the plot file
     # ========================================================================================
 
@@ -685,7 +725,6 @@ def main(argv):
         print('')
         print('Loading test case h0 files at site: '+site.name)
         
-        
         scr = hutils.scratch_space(test_h0_list[0])
         
         for file in test_h0_list:
@@ -698,7 +737,17 @@ def main(argv):
 
         for hvar in hvarlist:
             hvar.normalize_diagnostics()
-            
+
+
+        # Load history data into benchmark structures
+        if(census_bmark_mode):
+            for file in test_h0_list:
+                site.benchmarks.load_history(file,0,site.igh)
+
+        if(regressionmode):
+            for file in base_h0_list:
+                site.benchmarks.load_history(file,1,site.igh)
+
 
         # Initialize the restart variables.  This is a list of class hist_vars
         # found in the acre_history_utils module (hutils)
@@ -721,7 +770,16 @@ def main(argv):
 
 
         print('Site {} Diagnosed in {} seconds'.format(site.name,(time.time()-start_time)))
+
         if(plotmode):
+
+
+            # Plot out benchmark info
+            # No conditionals necessary, the lists will be empty if
+            # nothing to plot
+            if(census_bmark_mode):
+                butils.plot_bmarks(site,pdf)
+
 
             if(hdims.hperiod<=(24*32)):
                 putils.multipanel_histplot(site,hvarlist,"MMV",n_htypes,pdf)
