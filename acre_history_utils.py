@@ -2,7 +2,7 @@
 ## @package acre_history_utils a bunch of scripts that help interperate
 
 
-#import code   # For development: code.interact(local=locals())
+import code   # For development: code.interact(local=locals())
 import numpy as np
 import xml.etree.ElementTree as et
 from scipy.io import netcdf
@@ -542,17 +542,16 @@ class hist_dims:
             yr1,moy1,dom1,hod1 = hist_dateint_to_num(yyyymmdd_a[0],sec_a[0],db_a[0,:])
             yr2,moy2,dom2,hod2 = hist_dateint_to_num(yyyymmdd_b[0],sec_b[0],db_b[0,:])
 
-        # This does not need to be perfect at large numbers
-        # hourly period between history time-stamps
-        self.hperiod = int(np.ceil( (yr2-yr1)*365*24 + \
-                                      (moy2-moy1)*30*24 + \
-                                      (dom2-dom1)*24 + 
-                                      (hod2-hod1) ))
+        # Hourly period between time-steps
 
-                                    
+        date2 = datetime(year=int(yr2), month=int(moy2), day=int(dom2), hour=int(hod2))
+        date1 = datetime(year=int(yr1), month=int(moy1), day=int(dom1), hour=int(hod1))
+        diff = date2-date1
+
+        self.hperiod = int( diff.days * 24 + diff.seconds/3600 ) 
+
         yrz,moyz,domz,hodz = hist_dateint_to_num(yyyymmdd_z[-1],sec_z[-1],db_z[-1,:])
 
-#        yrz  = int(np.floor(yyyymmdd_z[-1]/10000.0))  
 
         self.nyears = yrz-yr1+1
         self.yeara = yr1
