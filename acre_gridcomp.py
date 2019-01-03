@@ -20,7 +20,7 @@
 # =======================================================================================
 
 import matplotlib as mpl
-#mpl.use('Agg')
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
@@ -34,7 +34,7 @@ from mpl_toolkits.basemap import Basemap
 # Some constants
 g_to_Mg = 1.0e-6
 m2_to_ha = 1.0e-4
-
+ylgn_cmap=mpl.cm.get_cmap('YlGn')
 
 def usage():
      print('')
@@ -182,16 +182,22 @@ def main(argv):
     # Interpret the arguments to the script
     regressionmode, eval_id, test_h_file, base_h_file, test_name, base_name = interp_args(argv)
 
-    
+    # Close all figures
+    plt.close('all')    
 
+    plotfile_name = eval_id+"_mapplots.pdf"
+    pdf = PdfPages(plotfile_name)
 
     # Load up a file to retrieve dimension info
-    fp = netcdf.netcdf_file(test_h_file, 'r', mmap=False)
+    fp1 = netcdf.netcdf_file(test_h_file, 'r', mmap=False)
 
+    if(regressionmode):
+         fp2 = netcdf.netcdf_file(base_h_file, 'r', mmap=False)
+         delta_str = 'Delta ({})-({})'.format(test_name.strip(),base_name.strip())
     
     # Load up the coordinate data
-    latvec_in = fp.variables['lat'].data;
-    lonvec_in = fp.variables['lon'].data;
+    latvec_in = fp1.variables['lat'].data;
+    lonvec_in = fp1.variables['lon'].data;
     
     # Change coordinate system and create a re-order index array
     posids = np.where(lonvec_in>180.0)
@@ -214,60 +220,102 @@ def main(argv):
 
     dlon = lonvec_in[2]-lonvec_in[1]
     dlat = latvec_in[2]-latvec_in[1]
-    lonvec[0] = lonvec_in[0]-0.5*dlon
+    lonvec[0] = np.maximum(-180.0,lonvec_in[0]-0.5*dlon)
     lonvec[1:-1] = 0.5*(lonvec_in[1:]+lonvec_in[0:-1])
-    lonvec[-1] = lonvec[-2]+dlon
+    lonvec[-1] = np.minimum(lonvec[-2]+dlon,180.0)
     latvec = 0.5*(latvec_in[1:]+latvec_in[0:-1])
 
-
-   
     # Create a mesh
     xv,yv = np.meshgrid(lonvec,latvec,sparse=False,indexing='xy')
 
-    #float ED_biomass(time, lat, lon) ;
-    #            ED_biomass:long_name = "Total biomass" ;
-    #            ED_biomass:units = "gC m-2" ;
-    #            ED_biomass:cell_methods = "time: mean" ;
-    #            ED_biomass:_FillValue = 1.e+36f ;
-    #            ED_biomass:missing_value = 1.e+36f ;
-
-    #landfrac
-    landfrac = fp.variables['landfrac'].data[1:-1,sort_ids]
+    #land fraction
+    landfrac = fp1.variables['landfrac'].data[1:-1,sort_ids]
 
     # Save the ocean-ids
     ocean_ids = np.where(landfrac>1.0)
+
+    
+    landfrac[ocean_ids]=np.nan
 
     #float PFTbiomass(time, fates_levpft, lat, lon) ;
     #	float PFTleafbiomass(time, fates_levpft, lat, lon) ;
 
     #(1, 46, 72)
-    #total_biomass = np.ma.masked_array(fp.variables['ED_biomass'].data[0,1:-1,sort_ids].reshape(shape2d),mask=logimask)
-    total_biomass = np.transpose(fp.variables['ED_biomass'].data[0,1:-1,sort_ids])
+    # Total Biomass
+    total_biomass1 = np.transpose(fp1.variables['ED_biomass'].data[0,1:-1,sort_ids])
+    total_biomass1 = total_biomass1 * g_to_Mg / m2_to_ha
+    total_biomass1[ocean_ids] = np.nan    # Set ocean-cells to nan
 
+    if(regressionmode):
+         
+         total_biomass2 = np.transpose(fp2.variables['ED_biomass'].data[0,1:-1,sort_ids])
+         total_biomass2 = total_biomass2 * g_to_Mg / m2_to_ha
+         total_biomass2[ocean_ids] = np.nan    # Set ocean-cells to nan
+         DeltaPlots(xv,yv,total_biomass2,total_biomass1,ylgn_cmap,'Total Biomass [Mg/ha]',delta_str,pdf)
+
+    else:
+         SingleMapPlot(xv,yv,total_biomass1,ylgn_cmap,'Total Biomass [Mg/ha]',pdf)
     
-    ylgn_cmap=mpl.cm.get_cmap('YlGn')
+   
+         
+    # (1, 46, 72)
+    # Total LAI
+    tlai1 = np.transpose(fp1.variables['TLAI'].data[0,1:-1,sort_ids])
+    tlai1[ocean_ids] = np.nan
 
-    total_biomass[ocean_ids] = np.nan    # Set ocean-cells to nan
-    total_biomass = total_biomass * g_to_Mg / m2_to_ha
-    m = Basemap(projection='robin',lon_0=0,resolution='c')
-    xmap,ymap = m(xv,yv)
-    #m = Basemap(llcrnrlon = -180, llcrnrlat = -90, urcrnrlon = 180, urcrnrlat = 90)
-    m.drawcoastlines()
-    m.pcolormesh(xmap,ymap,total_biomass,cmap=ylgn_cmap)
-    m.colorbar()
-    m.drawparallels(np.arange(-90.,120.,30.))
-    m.drawmeridians(np.arange(0.,360.,60.))
-    plt.title('Total Biomass [MgC/ha]')
-    plt.show()
-
-    
-
-
-    #(1, 46, 72)
-    total_lai = fp.variables['TLAI'].data
-    
-    code.interact(local=dict(globals(), **locals())) 
+    if(regressionmode):
+         
+         tlai2 = np.transpose(fp2.variables['TLAI'].data[0,1:-1,sort_ids])
+         tlai2[ocean_ids] = np.nan    # Set ocean-cells to nan
+         DeltaPlots(xv,yv,tlai2,tlai1,ylgn_cmap,'Total LAI [m2/m2]',delta_str,pdf)
+         
+    else:
+         SingleMapPlot(xv,yv,tlai1,ylgn_cmap,'Total Biomass [Mg/ha]',pdf)
+     
+         
+#    plt.show()
+    pdf.close()
+#    code.interact(local=dict(globals(), **locals())) 
     #code.interact(local=locals())
+
+
+def SingleMapPlot(xv,yv,mapdata,color_map,map_title,pdf):
+
+     fig = plt.figure()
+
+     m = Basemap(projection='robin',lon_0=0,resolution='c')
+     xmap,ymap = m(xv,yv)
+
+     m.drawcoastlines()
+     m.pcolormesh(xmap,ymap,np.ma.masked_invalid(mapdata),cmap=color_map)
+     m.colorbar()
+     m.drawparallels(np.arange(-90.,120.,30.))
+     m.drawmeridians(np.arange(0.,360.,60.))
+     plt.title(map_title)
+     
+     pdf.savefig(fig)
+
+def DeltaPlots(xv,yv,mapdata1,mapdata2,color_map,map_title,delta_str,pdf):
+
+     fig = plt.figure()
+
+     ax = fig.add_subplot(211)
+     ax.set_title('{}  (base)'.format(map_title))
+     m = Basemap(projection='robin',lon_0=0,resolution='c')
+     xmap,ymap = m(xv,yv)
+     m.drawcoastlines()
+     m.pcolormesh(xmap,ymap,np.ma.masked_invalid(mapdata1),cmap=color_map)
+     m.colorbar()
+
+     ax = fig.add_subplot(212)
+     ax.set_title(delta_str)
+     m = Basemap(projection='robin',lon_0=0,resolution='c')
+     xmap,ymap = m(xv,yv)
+     m.drawcoastlines()
+     m.pcolormesh(xmap,ymap,np.ma.masked_invalid(mapdata2-mapdata1),cmap=color_map)
+     m.colorbar()
+     
+     pdf.savefig(fig)
 
 # =======================================================================================
 # This is the actual call to main
