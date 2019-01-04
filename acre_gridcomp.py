@@ -276,22 +276,32 @@ def main(argv):
 
     # Index of dominant PFT by biomass
     # PFTbiomass(time, fates_levpft, lat, lon) 
-    pftbiomass_raw = fptest.variables['PFTbiomass'].data[0,:,1:-1,sort_ids]
+    pftbiomass_test = fptest.variables['PFTbiomass'].data[0,:,1:-1,sort_ids]
     pft_bdom_test = np.ones(landfrac.shape)*np.nan
-
-    npft = pftbiomass_raw.shape[1]
-
+    npft = pftbiomass_test.shape[1]
     for ilat in range(0,landfrac.shape[0]):
          for ilon in range(0,landfrac.shape[1]):
-              if( ~np.isnan(landfrac[ilat,ilon]) and np.amax(pftbiomass_raw[ilon,:,ilat]) > 1.e-6 ):
-                   maxids=np.argmax(pftbiomass_raw[ilon,:,ilat])
+              if( ~np.isnan(landfrac[ilat,ilon]) and np.amax(pftbiomass_test[ilon,:,ilat]) > 1.e-6 ):
+                   maxids=np.argmax(pftbiomass_test[ilon,:,ilat])
                    pft_bdom_test[ilat,ilon] = maxids+1
-                   
-    # Add one extra entry to the discrete colormap because we dont use the zero index
-    pft_cmap = discrete_cubehelix(npft+1)
+    pft_cmap = discrete_cubehelix(npft)
 
-    IndexMapPlot(xv,yv,pft_bdom_test,pft_cmap,'Dominant PFT by Biomass',pdf)
+    
          
+    if(regressionmode):
+         pftbiomass_base = fpbase.variables['PFTbiomass'].data[0,:,1:-1,sort_ids]
+         pft_bdom_base = np.ones(landfrac.shape)*np.nan
+         npft = pftbiomass_base.shape[1]
+         for ilat in range(0,landfrac.shape[0]):
+              for ilon in range(0,landfrac.shape[1]):
+                   if( ~np.isnan(landfrac[ilat,ilon]) and \
+                       np.amax(pftbiomass_base[ilon,:,ilat]) > 1.e-6 ):
+                        maxids=np.argmax(pftbiomass_base[ilon,:,ilat])
+                        pft_bdom_base[ilat,ilon] = maxids+1
+         
+         DoubleIndexMapPlot(xv,yv,pft_bdom_base,pft_bdom_test,pft_cmap,'Dominant PFT by Biomass',pdf)
+    else:
+         IndexMapPlot(xv,yv,pft_bdom_test,pft_cmap,'Dominant PFT by Biomass',pdf)
     
 
 
@@ -329,14 +339,14 @@ def IndexMapPlot(xv,yv,mapdata,color_map,map_title,pdf):
 
      fig = plt.figure()
 
-     indexrange = color_map.N-1
+     indexrange = color_map.N
 
      m = Basemap(projection='robin',lon_0=0,resolution='c')
      xmap,ymap = m(xv,yv)
 
      m.drawcoastlines()
-     m.pcolormesh(xmap,ymap,np.ma.masked_invalid(mapdata),cmap=color_map,vmin=1,vmax=indexrange)
-     m.colorbar(ticks=range(1,indexrange+1))
+     m.pcolormesh(xmap,ymap,np.ma.masked_invalid(mapdata),cmap=color_map,vmin=0.5,vmax=indexrange+0.5)
+     m.colorbar(ticks=np.linspace(1,indexrange,indexrange))
      plt.title(map_title)
      
      pdf.savefig(fig)
@@ -393,6 +403,30 @@ def DoubleMapPlots(xv,yv,mapdata1,mapdata2,base_cmap,map_title,pdf):
      m.drawcoastlines()
      m.pcolormesh(xmap,ymap,np.ma.masked_invalid(mapdata2),cmap=base_cmap,vmin=crange_lo,vmax=crange_hi)
      m.colorbar()
+     
+     pdf.savefig(fig)
+
+def DoubleIndexMapPlot(xv,yv,basedata,testdata,color_map,map_title,pdf):
+
+     fig = plt.figure()
+
+     indexrange = color_map.N
+
+     ax = fig.add_subplot(211)
+     ax.set_title('{} (Base)'.format(map_title))
+     m = Basemap(projection='robin',lon_0=0,resolution='c')
+     xmap,ymap = m(xv,yv)
+     m.drawcoastlines()
+     m.pcolormesh(xmap,ymap,np.ma.masked_invalid(basedata),cmap=color_map,vmin=0.5,vmax=indexrange+0.5)
+     m.colorbar(ticks=np.linspace(1,indexrange,indexrange))
+
+     ax = fig.add_subplot(212)
+     ax.set_title('{} (Test)'.format(map_title))
+     m = Basemap(projection='robin',lon_0=0,resolution='c')
+     xmap,ymap = m(xv,yv)
+     m.drawcoastlines()
+     m.pcolormesh(xmap,ymap,np.ma.masked_invalid(testdata),cmap=color_map,vmin=0.5,vmax=indexrange+0.5)
+     m.colorbar(ticks=np.linspace(1,indexrange,indexrange))
      
      pdf.savefig(fig)
 
