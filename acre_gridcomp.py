@@ -34,7 +34,9 @@ from mpl_toolkits.basemap import Basemap
 # Some constants
 g_to_Mg = 1.0e-6
 m2_to_ha = 1.0e-4
-ylgn_cmap=mpl.cm.get_cmap('YlGn')
+
+ylgn_seq_cmap=mpl.cm.get_cmap('YlGn')
+rdbu_div_cmap=mpl.cm.get_cmap('RdBu')
 
 def usage():
      print('')
@@ -188,16 +190,16 @@ def main(argv):
     plotfile_name = eval_id+"_mapplots.pdf"
     pdf = PdfPages(plotfile_name)
 
-    # Load up a file to retrieve dimension info
-    fp1 = netcdf.netcdf_file(test_h_file, 'r', mmap=False)
+    # Load up a file to retrieve dimension info (fptest = file pointer test)
+    fptest = netcdf.netcdf_file(test_h_file, 'r', mmap=False)
 
     if(regressionmode):
-         fp2 = netcdf.netcdf_file(base_h_file, 'r', mmap=False)
+         fpbase = netcdf.netcdf_file(base_h_file, 'r', mmap=False)
          delta_str = 'Delta ({})-({})'.format(test_name.strip(),base_name.strip())
     
     # Load up the coordinate data
-    latvec_in = fp1.variables['lat'].data;
-    lonvec_in = fp1.variables['lon'].data;
+    latvec_in = fptest.variables['lat'].data;
+    lonvec_in = fptest.variables['lon'].data;
     
     # Change coordinate system and create a re-order index array
     posids = np.where(lonvec_in>180.0)
@@ -229,7 +231,7 @@ def main(argv):
     xv,yv = np.meshgrid(lonvec,latvec,sparse=False,indexing='xy')
 
     #land fraction
-    landfrac = fp1.variables['landfrac'].data[1:-1,sort_ids]
+    landfrac = fptest.variables['landfrac'].data[1:-1,sort_ids]
 
     # Save the ocean-ids
     ocean_ids = np.where(landfrac>1.0)
@@ -242,41 +244,68 @@ def main(argv):
 
     #(1, 46, 72)
     # Total Biomass
-    total_biomass1 = np.transpose(fp1.variables['ED_biomass'].data[0,1:-1,sort_ids])
-    total_biomass1 = total_biomass1 * g_to_Mg / m2_to_ha
-    total_biomass1[ocean_ids] = np.nan    # Set ocean-cells to nan
+    tot_biomass_test = np.transpose(fptest.variables['ED_biomass'].data[0,1:-1,sort_ids])
+    tot_biomass_test = tot_biomass_test * g_to_Mg / m2_to_ha
+    tot_biomass_test[ocean_ids] = np.nan    # Set ocean-cells to nan
 
     if(regressionmode):
          
-         total_biomass2 = np.transpose(fp2.variables['ED_biomass'].data[0,1:-1,sort_ids])
-         total_biomass2 = total_biomass2 * g_to_Mg / m2_to_ha
-         total_biomass2[ocean_ids] = np.nan    # Set ocean-cells to nan
-         DeltaPlots(xv,yv,total_biomass2,total_biomass1,ylgn_cmap,'Total Biomass [Mg/ha]',delta_str,pdf)
-
+         tot_biomass_base = np.transpose(fpbase.variables['ED_biomass'].data[0,1:-1,sort_ids])
+         tot_biomass_base = tot_biomass_base * g_to_Mg / m2_to_ha
+         tot_biomass_base[ocean_ids] = np.nan    # Set ocean-cells to nan
+         DeltaPlots(xv,yv,tot_biomass_base,tot_biomass_test,ylgn_seq_cmap,rdbu_div_cmap,'Total Biomass [Mg/ha]',delta_str,pdf)
     else:
-         SingleMapPlot(xv,yv,total_biomass1,ylgn_cmap,'Total Biomass [Mg/ha]',pdf)
+         SingleMapPlot(xv,yv,tot_biomass_test,ylgn_seq_cmap,'Total Biomass [Mg/ha]',pdf)
     
    
          
     # (1, 46, 72)
     # Total LAI
-    tlai1 = np.transpose(fp1.variables['TLAI'].data[0,1:-1,sort_ids])
-    tlai1[ocean_ids] = np.nan
+    tlai_test = np.transpose(fptest.variables['TLAI'].data[0,1:-1,sort_ids])
+    tlai_test[ocean_ids] = np.nan
 
     if(regressionmode):
          
-         tlai2 = np.transpose(fp2.variables['TLAI'].data[0,1:-1,sort_ids])
-         tlai2[ocean_ids] = np.nan    # Set ocean-cells to nan
-         DeltaPlots(xv,yv,tlai2,tlai1,ylgn_cmap,'Total LAI [m2/m2]',delta_str,pdf)
-         
+         tlai_base = np.transpose(fpbase.variables['TLAI'].data[0,1:-1,sort_ids])
+         tlai_base[ocean_ids] = np.nan    # Set ocean-cells to nan
+         DeltaPlots(xv,yv,tlai_base,tlai_test,ylgn_seq_cmap,rdbu_div_cmap,'Total LAI [m2/m2]',delta_str,pdf)
     else:
-         SingleMapPlot(xv,yv,tlai1,ylgn_cmap,'Total Biomass [Mg/ha]',pdf)
+         SingleMapPlot(xv,yv,tlai_test,ylgn_seq_cmap,'Total Biomass [Mg/ha]',pdf)
      
+
+
+    # Index of dominant PFT by biomass
+    # PFTbiomass(time, fates_levpft, lat, lon) 
+    pftbiomass_raw = fptest.variables['PFTbiomass'].data[0,:,1:-1,sort_ids]
+    pft_bdom_test = np.ones(landfrac.shape)*np.nan
+
+    npft = pftbiomass_raw.shape[1]
+
+    for ilat in range(0,landfrac.shape[0]):
+         for ilon in range(0,landfrac.shape[1]):
+              if( ~np.isnan(landfrac[ilat,ilon]) and np.amax(pftbiomass_raw[ilon,:,ilat]) > 1.e-6 ):
+                   maxids=np.argmax(pftbiomass_raw[ilon,:,ilat])
+                   pft_bdom_test[ilat,ilon] = maxids+1
+                   
+    # Add one extra entry to the discrete colormap because we dont use the zero index
+    pft_cmap = discrete_cubehelix(npft+1)
+
+    IndexMapPlot(xv,yv,pft_bdom_test,pft_cmap,'Dominant PFT by Biomass',pdf)
          
+    
+
+
+
+
+
+
 #    plt.show()
     pdf.close()
 #    code.interact(local=dict(globals(), **locals())) 
     #code.interact(local=locals())
+    
+    print('Analysis Complete')
+    print('Report generated in {}'.format(plotfile_name))
 
 
 def SingleMapPlot(xv,yv,mapdata,color_map,map_title,pdf):
@@ -295,7 +324,26 @@ def SingleMapPlot(xv,yv,mapdata,color_map,map_title,pdf):
      
      pdf.savefig(fig)
 
-def DeltaPlots(xv,yv,mapdata1,mapdata2,color_map,map_title,delta_str,pdf):
+
+def IndexMapPlot(xv,yv,mapdata,color_map,map_title,pdf):
+
+     fig = plt.figure()
+
+     indexrange = color_map.N-1
+
+     m = Basemap(projection='robin',lon_0=0,resolution='c')
+     xmap,ymap = m(xv,yv)
+
+     m.drawcoastlines()
+     m.pcolormesh(xmap,ymap,np.ma.masked_invalid(mapdata),cmap=color_map,vmin=1,vmax=indexrange)
+     m.colorbar(ticks=range(1,indexrange+1))
+     plt.title(map_title)
+     
+     pdf.savefig(fig)
+     
+
+
+def DeltaPlots(xv,yv,mapdata1,mapdata2,base_cmap,delta_cmap,map_title,delta_str,pdf):
 
      fig = plt.figure()
 
@@ -304,18 +352,59 @@ def DeltaPlots(xv,yv,mapdata1,mapdata2,color_map,map_title,delta_str,pdf):
      m = Basemap(projection='robin',lon_0=0,resolution='c')
      xmap,ymap = m(xv,yv)
      m.drawcoastlines()
-     m.pcolormesh(xmap,ymap,np.ma.masked_invalid(mapdata1),cmap=color_map)
+     m.pcolormesh(xmap,ymap,np.ma.masked_invalid(mapdata1),cmap=base_cmap)
      m.colorbar()
+
+     delta = np.ma.masked_invalid(mapdata2-mapdata1)
+
+     crange = np.maximum(0.01,np.max(np.abs(delta)))
+
 
      ax = fig.add_subplot(212)
      ax.set_title(delta_str)
      m = Basemap(projection='robin',lon_0=0,resolution='c')
      xmap,ymap = m(xv,yv)
      m.drawcoastlines()
-     m.pcolormesh(xmap,ymap,np.ma.masked_invalid(mapdata2-mapdata1),cmap=color_map)
+     m.pcolormesh(xmap,ymap,np.ma.masked_invalid(mapdata2-mapdata1),cmap=delta_cmap,vmin=-crange, vmax=crange)
      m.colorbar()
      
      pdf.savefig(fig)
+
+
+def DoubleMapPlots(xv,yv,mapdata1,mapdata2,base_cmap,map_title,pdf):
+
+     fig = plt.figure()
+
+     crange_hi = np.nanmax( [np.nanmax(mapdata1),np.nanmax(mapdata2),0.01])
+     crange_lo = np.nanmin( [np.nanmin(mapdata1),np.nanmin(mapdata2),-0.01])
+
+     ax = fig.add_subplot(211)
+     ax.set_title('{}  (base)'.format(map_title))
+     m = Basemap(projection='robin',lon_0=0,resolution='c')
+     xmap,ymap = m(xv,yv)
+     m.drawcoastlines()
+     m.pcolormesh(xmap,ymap,np.ma.masked_invalid(mapdata1),cmap=base_cmap,vmin=crange_lo,vmax=crange_hi)
+     m.colorbar()
+
+     ax = fig.add_subplot(212)
+     ax.set_title('{}  (test)'.format(map_title))
+     m = Basemap(projection='robin',lon_0=0,resolution='c')
+     xmap,ymap = m(xv,yv)
+     m.drawcoastlines()
+     m.pcolormesh(xmap,ymap,np.ma.masked_invalid(mapdata2),cmap=base_cmap,vmin=crange_lo,vmax=crange_hi)
+     m.colorbar()
+     
+     pdf.savefig(fig)
+
+
+def discrete_cubehelix(N):
+
+    base = plt.cm.get_cmap('cubehelix')
+    color_list = base(np.random.randint(0,high=255,size=N))
+    cmap_name = base.name + str(N)
+    return base.from_list(cmap_name, color_list, N)
+
+
 
 # =======================================================================================
 # This is the actual call to main
