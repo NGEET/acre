@@ -270,7 +270,7 @@ def main(argv):
          tlai_base[ocean_ids] = np.nan    # Set ocean-cells to nan
          DeltaPlots(xv,yv,tlai_base,tlai_test,ylgn_seq_cmap,rdbu_div_cmap,'Total LAI [m2/m2]',delta_str,pdf)
     else:
-         SingleMapPlot(xv,yv,tlai_test,ylgn_seq_cmap,'Total Biomass [Mg/ha]',pdf)
+         SingleMapPlot(xv,yv,tlai_test,ylgn_seq_cmap,'Total LAI [m2/m2]',pdf)
      
 
 
@@ -305,7 +305,22 @@ def main(argv):
     
 
 
+    # Loop through the PFTs and plot out their coverage fractions
 
+    npft = pftbiomass_test.shape[1]
+    for ipft in range(0,npft):
+         
+         # Biomass coverage fractions
+         #pftbiomass_test = fptest.variables['PFTbiomass'].data[0,:,1:-1,sort_ids]
+         onepft_test = np.ones(landfrac.shape)*np.nan
+         for ilat in range(0,landfrac.shape[0]):
+              for ilon in range(0,landfrac.shape[1]):
+                   if( ~np.isnan(landfrac[ilat,ilon])):
+                       onepft_test[ilat,ilon] = pftbiomass_test[ilon,ipft,ilat] / (100.*tot_biomass_test[ilat,ilon])
+                       # Test if the sum is ok
+                    
+         
+         SingleMapPlot(xv,yv,onepft_test,ylgn_seq_cmap,'Biomass Fraction, PFT {}'.format(ipft+1),pdf)
 
 
 
