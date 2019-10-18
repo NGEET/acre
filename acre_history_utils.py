@@ -3,6 +3,7 @@
 
 
 import code   # For development: code.interact(local=locals())
+import sys
 import numpy as np
 import xml.etree.ElementTree as et
 from scipy.io import netcdf
@@ -493,23 +494,15 @@ class hist_dims:
     # @param filelist (list) a list of netcdf file names (probably first, second last)
     def timing(self,filelist):
 
-        if(filelist.__len__()==3):
-            filea = filelist[0]
+        # Set the first and the last file
+        filea = filelist[0]
+        filez = filelist[-1]
+
+        # Set the second file dependant on the length of the filelist
+        if(filelist.__len__() >= 2):
             fileb = filelist[1]
-            filez = filelist[2]
-        elif(filelist.__len__()==2):
-            filea = filelist[0]
-            fileb = filelist[1]
-            filez = filelist[1]
-        elif(filelist.__len__()==1):
-            filea = filelist[0]
+        elif(filelist.__len__() == 1):
             fileb = filelist[0]
-            filez = filelist[0]
-        else:
-            print('Retrieving file timing info from history')
-            print('files requires first, second and last files.')
-            print('You provided {} number of files'.format(threefilelist.__len__()))
-            sys.exit(2)
 
         # Open the timing info on the first file
         fpa = netcdf.netcdf_file(filea, 'r', mmap=False)
