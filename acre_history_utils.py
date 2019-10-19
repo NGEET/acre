@@ -89,16 +89,29 @@ def define_histvars(xmlfile,hdims,file0,n_htypes,test_name,base_name):
 
         fp = netcdf.netcdf_file(file0, 'r', mmap=False)
 
-        if (fp.variables.has_key(name)):
+        # This seems like a clunky work around
+        if sys.version_info[0] == 2:
+            if (fp.variables.has_key(name)):
 
-            # Determine dimension info
-            dimnames = fp.variables[name].dimensions
-#            units    = fp.variables[name]._attributes['units']
-            hvarlist.append(hist_vars(name,atypes,units,mults,offs, \
-                                      hdims,dimnames,hfile_id,n_htypes,test_name,base_name))
-        else:
-            print('History variable: '+name+', was not found in the history files')
+                # Determine dimension info
+                dimnames = fp.variables[name].dimensions
+    #            units    = fp.variables[name]._attributes['units']
+                hvarlist.append(hist_vars(name,atypes,units,mults,offs, \
+                                          hdims,dimnames,hfile_id,n_htypes,test_name,base_name))
+            else:
+                print('History variable: '+name+', was not found in the history files')
 
+        elif sys.version_info[0] == 3:
+            if (name in fp.variables): # Is this valid in python2.7
+
+                # Determine dimension info
+                dimnames = fp.variables[name].dimensions
+    #            units    = fp.variables[name]._attributes['units']
+                hvarlist.append(hist_vars(name,atypes,units,mults,offs, \
+                                          hdims,dimnames,hfile_id,n_htypes,test_name,base_name))
+            else:
+                print('History variable: '+name+', was not found in the history files')
+        
         fp.close()
 
     return(hvarlist)
