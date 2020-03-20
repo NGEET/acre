@@ -165,7 +165,7 @@ def load_sites(xmlfile,sitetype):
         lon  = float(elem.find('lon').text)
 
         census_obj = elem.find('census_filename')
-        if( census_obj is not None ):
+        if( census_obj.text is not None ):
             census_filename = census_obj.text.strip()
         else:
             census_filename = ''
