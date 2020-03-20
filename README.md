@@ -9,8 +9,7 @@ The `acre_gridcomp.py` script is intended to diagnose the output of gridded CLM/
 Options for both include:
 1. the ability to do a regression against another set of files (base).
 2. analysis of history files (which have a 1-hour suggested output) (NOT `acre_gridcomp.py`?)
-3. plotting (most of the analysis right now is visual, not much
-                             really happens right now without plotting)
+3. plotting (most of the analysis right now is visual, not much really happens right now without plotting)
 
 
 ## Next capabilities that are in queue
