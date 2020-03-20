@@ -172,6 +172,8 @@ def load_sites(xmlfile,sitetype):
             # If there is data actually in the attribute (i.e. not empty)
             if (census_obj.text is not None):
                 census_filename = census_obj.text.strip()
+            else:
+                census_filename = ''
         else:
             census_filename = ''
 
