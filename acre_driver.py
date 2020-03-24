@@ -165,8 +165,15 @@ def load_sites(xmlfile,sitetype):
         lon  = float(elem.find('lon').text)
 
         census_obj = elem.find('census_filename')
+
+        # If there is a census_filename attribute
         if( census_obj is not None ):
-            census_filename = census_obj.text.strip()
+
+            # If there is data actually in the attribute (i.e. not empty)
+            if (census_obj.text is not None):
+                census_filename = census_obj.text.strip()
+            else:
+                census_filename = ''
         else:
             census_filename = ''
 
@@ -679,11 +686,11 @@ def main(argv):
     # ========================================================================================
     # Evaluate the first history file for dimension information and save it as the hist_dims 
     # class.  Restart analysis is more straightforward, this step is not needed.
-    # Openning all 
+    # Openning all
     # ========================================================================================
 
     hdims = hutils.hist_dims(test_h0_list[0])
-    hdims.timing([test_h0_list[0],test_h0_list[1],test_h0_list[-1]])
+    hdims.timing(test_h0_list)
 
     hvarlist = hutils.define_histvars(xmlfile,hdims,test_h0_list[0],n_htypes,test_name,base_name)
 
